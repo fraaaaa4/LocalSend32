@@ -27,8 +27,7 @@ The project is compiled using the `LLVM-MinGW` toolchain (UCRT) which support co
 
 The x86 version is meant only as a "fun extra"; it's not tested actively, but it should work without any problem on Windows XP SP3+. Requires dynamic linking to OpenSSL, using *libcrypto-3.dll* and *libssl-3.dll* from the DiscordMessenger's fork of OpenSSL: https://github.com/DiscordMessenger/openssl. These two DLLs must be placed in the same folder as the exe itself.
 
-The files for the 32-bit version are the same as the RT version, so get the files from the main branch.
-
+The files for the 32-bit version are the same as the RT version, so get the files from the main branch. Tested on Wine with Fedora, working fine.
 
 ## x86 build
 As for the RT build, first compile the manifest for the theme (which is different between the two versions):

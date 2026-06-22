@@ -9,9 +9,12 @@ It integrates the LocalSend v2 protocol using the Windows Secure Channel API for
 - cert.c/cert.h : generates self-signed certificates using NCrypt APIs for TLS.
 - main.c : main GUI loop, settings parser, UI event dispatching
 - manifest.rc/manifest.o : theme manifest
-- network_tcp.c/network_tcp.h : handles incoming TCP server requests, for receiving files
-- network_tx.c/network_tx.h : handless outbound TCP client connections
+- network_tcp.c/network_tcp.h : handles incoming TCP server requests, for receiving files, using TlsSocket abstraction
+- network_tx.c/network_tx.h : handless outbound TCP client connections, using TlsSocket astraction
 - network_udp.c/network_udp.h: handles UDP multicast discovery beacons
+- tls_layer,h : abstract TLS socket API definition
+- tls_schannel.h : Windows Schannel/SSPI implementation (LocalSend RT)
+- tls_openssl.c : OpenSSL TLS implementation (LocalSend32)
 - utils.c/utils.h : helper utilities, such as JSON parser, file type mapping, path helpers
 
 # Networking stuff
@@ -60,11 +63,6 @@ This part is contained in `network_tcp.c`. A persistent background thread binds 
 # Compiling
 The project is compiled using the `LLVM-MinGW` toolchain (UCRT) which support compiling to ARMv7 and x86 architectures. Compilation has been tested/made from a Linux and macOS host.
 
-## x86 Version
-The x86 version is meant only as a "fun extra"; it's not tested actively, but it should work without any problem on Windows 8.x. **For future reference**, a dedicated x86 build is planned for the future.
-
-The future x86 version will be implementing https://github.com/openssl/openssl for TLS connection on older versions of Windows, while maintaining the rest of the app identical.
-
 ## RT build
 First compile the manifest for the theme:
 ```bash
@@ -77,18 +75,4 @@ armv7-w64-mingw32-gcc -o LocalSendRT.exe \
     main.c cert.c network_tcp.c network_tx.c network_udp.c utils.c manifest.o \
     -lws2_32 -lsecur32 -lcomctl32 -lole32 -luuid -lgdi32 -lshlwapi -lcomdlg32 -lncrypt -lcrypt32 \
     -mwindows -O2
-```
-
-## x86 build
-As for the RT build, first compile the manifest for the theme (which is different between the two versions):
-```bash
-  i686-w64-mingw32-windres -o manifest_x86.o manifest.rc
-```
-
-Then compile the project itself:
-```bash
-i686-w64-mingw32-gcc -o LocalSendRT_x86.exe \
-    main.c cert.c network_tcp.c network_tx.c network_udp.c utils.c manifest_x86.o \
-    -lws2_32 -lsecur32 -lcomctl32 -lole32 -luuid -lgdi32 -lshlwapi -lcomdlg32 -lncrypt -lcrypt32 \
-    -msse2 -mwindows -O2
 ```

@@ -25,8 +25,7 @@ The app, as said, implements the LocalSend v2 protocol: https://github.com/local
 # Compiling
 The project is compiled using the `LLVM-MinGW` toolchain (UCRT) which support compiling to ARMv7 and x86 architectures. Compilation has been tested/made from a Linux and macOS host.
 
-## x86 Version
-The x86 version is meant only as a "fun extra"; it's not tested actively, but it should work without any problem on Windows XP SP3+.
+The x86 version is meant only as a "fun extra"; it's not tested actively, but it should work without any problem on Windows XP SP3+. Requires dynamic linking to OpenSSL, using *libcrypto-3.dll* and *libssl-3.dll* from the DiscordMessenger's fork of OpenSSL: https://github.com/DiscordMessenger/openssl. These two DLLs must be placed in the same folder as the exe itself.
 
 
 ## x86 build

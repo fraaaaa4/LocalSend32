@@ -5,6 +5,11 @@ It's built entirely using C11 and native Win32 controls; it uses system DLL call
 
 It integrates the LocalSend v2 protocol using the Windows Secure Channel API for TLS 1.2 handshakes, providing encrypted transfers via HTTPS. Settings are saved on an .ini file in the same location as the executable, and are loaded/modified dynamically. It also adds a rule in Windows Firewall to let the program
 
+# Screenshots
+<img width="775" height="384" alt="1" src="https://github.com/user-attachments/assets/a8ee1c3c-9f84-4623-bfbb-bd30867ac261" />
+<img width="800" height="420" alt="2" src="https://github.com/user-attachments/assets/2bd3a78a-e0b0-42df-86af-cc309535f0fd" />
+<img width="904" height="450" alt="3" src="https://github.com/user-attachments/assets/05c9032f-c3be-457a-b31f-0b0ad26be1e4" />
+
 # Files structure
 - cert.c/cert.h : generates self-signed certificates using NCrypt APIs for TLS.
 - main.c : main GUI loop, settings parser, UI event dispatching

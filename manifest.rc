@@ -1,0 +1,15 @@
+#include <windows.h>
+
+1 24 MOVEABLE PURE
+BEGIN
+    "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>\r\n"
+    "<assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"">\r\n"
+    "  <assemblyIdentity version=""1.0.0.0"" processorArchitecture=""*"" name=""LocalSendRT"" type=""win32"" />\r\n"
+    "  <description>LocalSend Native Client for Windows RT</description>\r\n"
+    "  <dependency>\r\n"
+    "    <dependentAssembly>\r\n"
+    "      <assemblyIdentity type=""win32"" name=""Microsoft.Windows.Common-Controls"" version=""6.0.0.0"" processorArchitecture=""*"" publicKeyToken=""6595b64144ccf1df"" language=""*"" />\r\n"
+    "    </dependentAssembly>\r\n"
+    "  </dependency>\r\n"
+    "</assembly>\r\n"
+END

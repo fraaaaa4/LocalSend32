@@ -17,7 +17,7 @@ It integrates the LocalSend v2 protocol using the Windows Secure Channel API for
 - network_tcp.c/network_tcp.h : handles incoming TCP server requests, for receiving files, using TlsSocket abstraction
 - network_tx.c/network_tx.h : handless outbound TCP client connections, using TlsSocket astraction
 - network_udp.c/network_udp.h: handles UDP multicast discovery beacons
-- tls_layer,h : abstract TLS socket API definition
+- tls_layer.h : abstract TLS socket API definition
 - tls_schannel.h : Windows Schannel/SSPI implementation (LocalSend RT)
 - tls_openssl.c : OpenSSL TLS implementation (LocalSend32)
 - utils.c/utils.h : helper utilities, such as JSON parser, file type mapping, path helpers

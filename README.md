@@ -76,8 +76,5 @@ First compile the manifest for the theme:
 
 Then compile the project iself:
 ```bash
-armv7-w64-mingw32-gcc -o LocalSendRT.exe \
-    main.c cert.c network_tcp.c network_tx.c network_udp.c utils.c manifest.o \
-    -lws2_32 -lsecur32 -lcomctl32 -lole32 -luuid -lgdi32 -lshlwapi -lcomdlg32 -lncrypt -lcrypt32 \
-    -mwindows -O2
+armv7-w64-mingw32-gcc -O2 -Wall main.c cert.c network_tcp.c network_tx.c network_udp.c tls_schannel.c utils.c manifest.o -o LocalSendRT.exe -lws2_32 -lcomctl32 -lshlwapi -lole32 -luuid -lcrypt32 -lncrypt -lsecur32 -liphlpapi -lgdi32 -lcomdlg32 -mwindows
 ```

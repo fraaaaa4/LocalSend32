@@ -1138,11 +1138,11 @@ void AddFileToSendQueue(const char* filePath, const char* fileName, long long fi
     g_sendQueueCount++; UpdateSendButtonsState();
 }
 
-int main() {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     INITCOMMONCONTROLSEX icex; icex.dwSize = sizeof(INITCOMMONCONTROLSEX); icex.dwICC = ICC_TAB_CLASSES | ICC_LISTVIEW_CLASSES | ICC_BAR_CLASSES; InitCommonControlsEx(&icex);
     autoFirewall(); if (!initWinsock()) return 1;
     TlsInitGlobal();
-    HINSTANCE hInstance = GetModuleHandle(NULL);
+    hInstance = GetModuleHandle(NULL);
     WNDCLASSEXA wc = {0};
     wc.cbSize = sizeof(WNDCLASSEXA);
     wc.lpfnWndProc = WndProc;

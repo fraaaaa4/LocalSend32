@@ -37,9 +37,10 @@ As for the RT build, first compile the manifest for the theme (which is differen
 
 Then compile the project itself:
 ```bash
-i686-w64-mingw32-gcc -o LocalSend32.exe \
-    main.c cert.c network_tcp.c network_tx.c network_udp.c utils.c tls_openssl.c manifest_x86.o \
-    -I/home/fratta/Scaricati/openssl-stuff/include -L/home/fratta/Scaricati/openssl-stuff \
-    -lssl -lcrypto -lws2_32 -lcomctl32 -lole32 -luuid -lgdi32 -lshlwapi -lcomdlg32 -lncrypt -lcrypt32 \
-    -msse2 -mwindows -O2
+i686-w64-mingw32-gcc -O2 -Wall       main.c network_tcp.c network_tx.c network_udp.c tls_openssl.c utils.c manifest_x86.o       -o LocalSend32.exe       -I/home/fratta/Scaricati/openssl-stuff/include       -L/home/fratta/Scaricati/openssl-stuff       -lssl -lcrypto -lws2_32 -lcomctl32 -lshlwapi -lole32 -luuid -lcomdlg32       -mwindows -D_WIN32_WINNT=0x0500
 ```
+
+## Compatibility
+Given you use dm's OpenSSL, it should work on any PC running Windows 2000 or superior. I haven't tried the networking part on an older system, but theoretically it shouldn't have any problem.
+<img width="1124" height="1038" alt="Schermata del 2026-06-30 23-19-45" src="https://github.com/user-attachments/assets/a823abe6-17a6-4902-ad27-f34bdefc3a2b" />
+

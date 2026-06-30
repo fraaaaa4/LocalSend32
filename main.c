@@ -9,6 +9,10 @@
 #include <objbase.h>
 #include <shlwapi.h>
 
+#ifndef SHACF_FILESYS_DIRS
+#define SHACF_FILESYS_DIRS 0x00000020
+#endif
+
 #include "utils.h"
 #include "network_udp.h"
 #include "network_tcp.h"
@@ -340,10 +344,10 @@ void SaveSettings() {
 
     if (savePos) {
         RECT rc; GetWindowRect(g_hWndMain, &rc);
-        sprintf(buf, "%d", rc.left); WritePrivateProfileStringA("Settings", "WinX", buf, g_IniPath);
-        sprintf(buf, "%d", rc.top); WritePrivateProfileStringA("Settings", "WinY", buf, g_IniPath);
-        sprintf(buf, "%d", rc.right - rc.left); WritePrivateProfileStringA("Settings", "WinW", buf, g_IniPath);
-        sprintf(buf, "%d", rc.bottom - rc.top); WritePrivateProfileStringA("Settings", "WinH", buf, g_IniPath);
+        sprintf(buf, "%d", (int)rc.left); WritePrivateProfileStringA("Settings", "WinX", buf, g_IniPath);
+        sprintf(buf, "%d", (int)rc.top); WritePrivateProfileStringA("Settings", "WinY", buf, g_IniPath);
+        sprintf(buf, "%d", (int)(rc.right - rc.left)); WritePrivateProfileStringA("Settings", "WinW", buf, g_IniPath);
+        sprintf(buf, "%d", (int)(rc.bottom - rc.top)); WritePrivateProfileStringA("Settings", "WinH", buf, g_IniPath);
     }
 }
 
@@ -730,7 +734,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         case WM_LBUTTONDOWN: { int xPos = LOWORD(lParam); int mainTab = TabCtrl_GetCurSel(hWndTab); if ((mainTab == 0 || mainTab == 1) && xPos >= g_SplitterPos && xPos <= g_SplitterPos + 10) { g_bDraggingSplitter = true; SetCapture(hWnd); SetCursor(LoadCursor(NULL, IDC_SIZEWE)); } break; }
         case WM_MOUSEMOVE: { int mainTab = TabCtrl_GetCurSel(hWndTab); if (mainTab != 0 && mainTab != 1) break; int xPos = LOWORD(lParam); if (g_bDraggingSplitter) { if (xPos > 200 && xPos < 600) { g_SplitterPos = xPos; RECT rect; GetClientRect(hWnd, &rect); InvalidateRect(hWnd, NULL, TRUE); ResizeControls(hWnd, rect.right, rect.bottom); } } else if (xPos >= g_SplitterPos && xPos <= g_SplitterPos + 10) { SetCursor(LoadCursor(NULL, IDC_SIZEWE)); } break; }
         case WM_LBUTTONUP: { if (g_bDraggingSplitter) { g_bDraggingSplitter = false; ReleaseCapture(); } break; }
-        case WM_CTLCOLORSTATIC: { HDC hdcStatic = (HDC)wParam; SetBkMode(hdcStatic, TRANSPARENT); return (LRESULT)GetSysColorBrush(COLOR_WINDOW); }
+        case WM_CTLCOLORSTATIC: { HDC hdcStatic = (HDC)wParam; SetBkMode(hdcStatic, TRANSPARENT); return (LRESULT)GetSysColorBrush(COLOR_BTNFACE); }
 
         case WM_CONTEXTMENU: {
             HWND hTrigger = (HWND)wParam;
@@ -1052,7 +1056,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         case WM_CLOSE: { SaveSettings(); if (IsDlgButtonChecked(hWnd, IDC_SET_MIN_CLOSE)) ShowWindow(hWnd, SW_HIDE); else DestroyWindow(hWnd); break; }
         case WM_DESTROY: {
             SaveSettings();
-            if (hNormalFont) DeleteObject(hNormalFont); if (hLargeFont) DeleteObject(hLargeFont); if (hStatusFont) DeleteObject(hStatusFont); if (hDeviceImageList) ImageList_Destroy(hDeviceImageList);
+            if (hNormalFont) DeleteObject(hNormalFont);
+            if (hLargeFont) DeleteObject(hLargeFont);
+            if (hStatusFont) DeleteObject(hStatusFont);
+            if (hDeviceImageList) ImageList_Destroy(hDeviceImageList);
             HICON hCurrentIcon = (HICON)SendMessage(hWndStatusIcon, STM_GETICON, 0, 0); if (hCurrentIcon) DestroyIcon(hCurrentIcon); Shell_NotifyIconA(NIM_DELETE, &nid);
             if (hWndListDevices) { int devCount = ListView_GetItemCount(hWndListDevices); for (int i = 0; i < devCount; i++) { LVITEMA lvi = {0}; lvi.iItem = i; lvi.mask = LVIF_PARAM; ListView_GetItem(hWndListDevices, &lvi); if (lvi.lParam) free((void*)lvi.lParam); } }
             PostQuitMessage(0); break;
@@ -1217,7 +1224,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     g_mySocket = createUdpSocket(); if (g_mySocket != INVALID_SOCKET && joinMulticastGroup(g_mySocket)) { HANDLE hUdpThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)startListeningLoop, (LPVOID)g_mySocket, 0, NULL); if (hUdpThread) CloseHandle(hUdpThread); }
     HANDLE hTcpThread = CreateThread(NULL, 0, tcpServerThread, NULL, 0, NULL); if (hTcpThread) CloseHandle(hTcpThread);
     MSG msg; while (GetMessage(&msg, NULL, 0, 0)) { TranslateMessage(&msg); DispatchMessage(&msg); }
-    if (g_mySocket != INVALID_SOCKET) closesocket(g_mySocket); WSACleanup(); TlsCleanupGlobal(); CoUninitialize(); return 0;
+    if (g_mySocket != INVALID_SOCKET) {
+        closesocket(g_mySocket);
+    }
+    WSACleanup();
+    TlsCleanupGlobal();
+    CoUninitialize();
+    return 0;
 }
 
 static LRESULT CALLBACK ConfirmationWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {

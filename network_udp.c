@@ -109,7 +109,7 @@ void startListeningLoop(SOCKET mySocket) {
                 continue;
             }
 
-            strncpy(discoveredDevice.ipAddress, inet_ntoa(sendingAddress.sin_addr), sizeof(discoveredDevice.ipAddress));
+            _snprintf(discoveredDevice.ipAddress, sizeof(discoveredDevice.ipAddress), "%s", inet_ntoa(sendingAddress.sin_addr));
 
             // Notify UI
             if (g_hWndMain) {

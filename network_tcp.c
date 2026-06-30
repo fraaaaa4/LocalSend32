@@ -158,7 +158,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             strcat(jsonResponse, "{\"sessionId\":\"surface-session\",\"files\":{");
             for (int i = 0; i < g_fileQueueCount; i++) {
                 char fileToken[256];
-                sprintf(fileToken, "\"%s\":\"accepted-token\"%s", g_fileQueue[i].fileId, (i == g_fileQueueCount - 1) ? "" : ",");
+                _snprintf(fileToken, sizeof(fileToken), "\"%s\":\"accepted-token\"%s", g_fileQueue[i].fileId, (i == g_fileQueueCount - 1) ? "" : ",");
                 strcat(jsonResponse, fileToken);
             }
             strcat(jsonResponse, "}}");
@@ -207,7 +207,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             if (info) {
                 strcpy(info->fileName, currentFileName);
                 strcpy(info->fileId, extractedId);
-                strncpy(info->senderName, g_lastSenderDeviceName, 127);
+                _snprintf(info->senderName, sizeof(info->senderName), "%s", g_lastSenderDeviceName);
                 info->fileSize = currentFileSize;
                 PostMessage(g_hWndMain, WM_FILE_START, 0, (LPARAM)info);
             }

@@ -1,4 +1,6 @@
 # LocalSend RT
+<img width="128" height="128" alt="Frame 10" src="https://github.com/user-attachments/assets/d96d232a-955c-4ef4-b3de-fa42f966880c" />
+
 LocalSend RT is a lightweight C/Win32 client for the LocalSend protocol, made specifically for Windows RT ARMv7 devices. 
 
 It's built entirely using C11 and native Win32 controls; it uses system DLL calls for icons and native APIs.

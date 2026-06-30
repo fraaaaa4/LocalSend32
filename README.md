@@ -80,3 +80,6 @@ Then compile the project iself:
 ```bash
 armv7-w64-mingw32-gcc -O2 -Wall main.c cert.c network_tcp.c network_tx.c network_udp.c tls_schannel.c utils.c manifest.o -o LocalSendRT.exe -lws2_32 -lcomctl32 -lshlwapi -lole32 -luuid -lcrypt32 -lncrypt -lsecur32 -liphlpapi -lgdi32 -lcomdlg32 -mwindows
 ```
+
+## Notes
+- When opening the app for the first time, it creates an .ini file containing the preferences of the app. So, for cleanliness, I suggest you put the exe in Program Files, and then make the shortcut to it

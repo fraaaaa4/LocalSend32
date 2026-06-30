@@ -20,14 +20,14 @@ extern char g_DeviceType[];
 extern char g_MyFingerprint[];
 extern int g_Port;
 
-// Helper to safely allocate a copy of a status string on the heap, allowing it to be sent to WndProc via PostMessage.
+// Copies string to heap to post to window procedure
 char* AllocateString(const char* str) {
     char* newStr = (char*)malloc(strlen(str) + 1);
     if (newStr) strcpy(newStr, str);
     return newStr;
 }
 
-// Reads raw HTTP data from the socket stream, handling SSL decryption transparently via the TLS layer if enabled.
+// Reads and decrypts HTTP response
 static int ReadHttpPlaintext(SOCKET sock, TlsSocket* tls, char* outBuffer, int maxLen, bool useTls) {
     int total = 0;
     outBuffer[0] = '\0';
@@ -61,7 +61,7 @@ static int ReadHttpPlaintext(SOCKET sock, TlsSocket* tls, char* outBuffer, int m
     return total;
 }
 
-// Sends an HTTP request payload across the wire, encrypting it on the fly if encryption is enabled.
+// Sends HTTP payload (with TLS if enabled)
 static bool SendHttpPayload(SOCKET sock, TlsSocket* tls, const char* message, int len, bool useTls) {
     if (useTls) {
         return TlsWrite(tls, message, len) > 0;

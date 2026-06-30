@@ -8,7 +8,7 @@
 extern char g_MyDeviceName[];
 extern char g_MyFingerprint[];
 
-// Sends a multicast discovery packet to let other peers on the local network know our device details.
+// Broadcasts presence on the network
 void sendDiscoveryShout(SOCKET mySocket) {
     struct sockaddr_in multicastAddress;
     multicastAddress.sin_family = AF_INET;
@@ -27,7 +27,7 @@ void sendDiscoveryShout(SOCKET mySocket) {
     sendto(mySocket, jsonShout, (int)strlen(jsonShout), 0, (SOCKADDR *)&multicastAddress, sizeof(multicastAddress));
 }
 
-// Creates and binds a new UDP socket to listen on the LocalSend discovery port.
+// Creates UDP socket
 SOCKET createUdpSocket(){
     SOCKET mySocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (mySocket == INVALID_SOCKET) {
@@ -50,7 +50,7 @@ SOCKET createUdpSocket(){
     return mySocket;
 }
 
-// Joins the designated multicast group for device discovery, querying the local system host address to pick the right interface.
+// Joins multicast group
 bool joinMulticastGroup(SOCKET mySocket) {
     struct ip_mreq multicastGroup;
     multicastGroup.imr_multiaddr.s_addr = inet_addr(g_MulticastAddr);
@@ -80,7 +80,7 @@ bool joinMulticastGroup(SOCKET mySocket) {
     return true;
 }
 
-// Enters a blocking loop that listens for incoming UDP discovery packets, parsing peer info and reporting it back to the UI.
+// UDP listener loop
 void startListeningLoop(SOCKET mySocket) {
     char buffer[1024];
     struct sockaddr_in sendingAddress;

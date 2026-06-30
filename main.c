@@ -20,10 +20,12 @@
     #define APP_NAME "LocalSend RT"
     #define APP_ABOUT "LocalSend client built with C/Win32 APIs. Made for Windows RT."
     #define APP_SUPPORT_BTN "About LocalSend RT"
+    #define APP_SUPPORT_URL "https://github.com/fraaaaa4/LocalSend32"
 #else
     #define APP_NAME "LocalSend32"
     #define APP_ABOUT "LocalSend client built with C/Win32 APIs. Made for 32-bit Windows."
     #define APP_SUPPORT_BTN "About LocalSend32"
+    #define APP_SUPPORT_URL "https://github.com/fraaaaa4/LocalSend32"
 #endif
 
 #define IDC_TAB_CONTROL       3001
@@ -347,23 +349,74 @@ void SaveSettings() {
 
 void ApplyWindowFont(HWND hWndChild) {
     if (hNormalFont == NULL) {
-        NONCLIENTMETRICSA ncm; ncm.cbSize = sizeof(NONCLIENTMETRICSA); SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSA), &ncm, 0);
-        hNormalFont = CreateFontIndirectA(&ncm.lfMessageFont);
-    } SendMessage(hWndChild, WM_SETFONT, (WPARAM)hNormalFont, TRUE);
+        NONCLIENTMETRICSA ncm;
+        memset(&ncm, 0, sizeof(NONCLIENTMETRICSA));
+        ncm.cbSize = sizeof(NONCLIENTMETRICSA);
+        if (!SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSA), &ncm, 0)) {
+            // Try Windows XP/RT-compatible size (excluding iPaddedBorderWidth, which is a 4-byte integer)
+            ncm.cbSize = sizeof(NONCLIENTMETRICSA) - sizeof(int);
+            if (!SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0)) {
+                hNormalFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+            }
+        }
+        if (hNormalFont == NULL) {
+            hNormalFont = CreateFontIndirectA(&ncm.lfMessageFont);
+        }
+        if (hNormalFont == NULL) {
+            hNormalFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        }
+    }
+    SendMessage(hWndChild, WM_SETFONT, (WPARAM)hNormalFont, TRUE);
 }
 
 void ApplyLargeFont(HWND hWndChild) {
     if (hLargeFont == NULL) {
-        NONCLIENTMETRICSA ncm; ncm.cbSize = sizeof(NONCLIENTMETRICSA); SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSA), &ncm, 0);
-        hLargeFont = CreateFontA(ncm.lfMessageFont.lfHeight * 1.5, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, ncm.lfMessageFont.lfFaceName);
-    } SendMessage(hWndChild, WM_SETFONT, (WPARAM)hLargeFont, TRUE);
+        NONCLIENTMETRICSA ncm;
+        memset(&ncm, 0, sizeof(NONCLIENTMETRICSA));
+        ncm.cbSize = sizeof(NONCLIENTMETRICSA);
+        BOOL ok = SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSA), &ncm, 0);
+        if (!ok) {
+            ncm.cbSize = sizeof(NONCLIENTMETRICSA) - sizeof(int);
+            ok = SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0);
+        }
+
+        int height = -16;
+        const char* faceName = "MS Shell Dlg";
+        if (ok) {
+            height = ncm.lfMessageFont.lfHeight * 1.5;
+            faceName = ncm.lfMessageFont.lfFaceName;
+        }
+
+        hLargeFont = CreateFontA(height, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, faceName);
+        if (hLargeFont == NULL) {
+            hLargeFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        }
+    }
+    SendMessage(hWndChild, WM_SETFONT, (WPARAM)hLargeFont, TRUE);
 }
 
 void ApplyStatusFont(HWND hWndChild) {
     if (hStatusFont == NULL) {
-        NONCLIENTMETRICSA ncm; ncm.cbSize = sizeof(NONCLIENTMETRICSA); SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSA), &ncm, 0);
-        hStatusFont = CreateFontA(ncm.lfMessageFont.lfHeight - 2, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
-    } SendMessage(hWndChild, WM_SETFONT, (WPARAM)hStatusFont, TRUE);
+        NONCLIENTMETRICSA ncm;
+        memset(&ncm, 0, sizeof(NONCLIENTMETRICSA));
+        ncm.cbSize = sizeof(NONCLIENTMETRICSA);
+        BOOL ok = SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICSA), &ncm, 0);
+        if (!ok) {
+            ncm.cbSize = sizeof(NONCLIENTMETRICSA) - sizeof(int);
+            ok = SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, ncm.cbSize, &ncm, 0);
+        }
+
+        int height = -10;
+        if (ok) {
+            height = ncm.lfMessageFont.lfHeight - 2;
+        }
+
+        hStatusFont = CreateFontA(height, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Segoe UI");
+        if (hStatusFont == NULL) {
+            hStatusFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        }
+    }
+    SendMessage(hWndChild, WM_SETFONT, (WPARAM)hStatusFont, TRUE);
 }
 
 void UpdateStatusIcon(StatusIconType type) {
@@ -540,7 +593,7 @@ void ResizeControls(HWND hWnd, int width, int height) {
         MoveWindow(hWndLblPort, baseX + 15, baseY + 197, 160, 20, TRUE);
         MoveWindow(hWndEditPort, baseX + 180, baseY + 195, 80, 22, TRUE);
 
-        MoveWindow(hWndIconStatic, baseX + 15, baseY + 15, 48, 48, TRUE); MoveWindow(hWndLabelAbout, baseX + 80, baseY + 15, subW - 95, 65, TRUE); MoveWindow(hWndBtnGithub, baseX + 15, baseY + 95, 160, 30, TRUE); MoveWindow(hWndBtnSupport, baseX + 190, baseY + 95, 160, 30, TRUE);
+        MoveWindow(hWndIconStatic, baseX + 15, baseY + 15, 48, 48, TRUE); MoveWindow(hWndLabelAbout, baseX + 80, baseY + 15, subW - 95, 100, TRUE); MoveWindow(hWndBtnGithub, baseX + 15, baseY + 125, 160, 30, TRUE); MoveWindow(hWndBtnSupport, baseX + 190, baseY + 125, 160, 30, TRUE);
     }
 }
 
@@ -640,9 +693,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
             hWndEditPort = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "", WS_CHILD | ES_AUTOHSCROLL | ES_NUMBER, 0, 0, 0, 0, hWnd, (HMENU)IDC_SET_PORT, GetModuleHandle(NULL), NULL); ApplyWindowFont(hWndEditPort); SendMessage(hWndEditPort, EM_SETLIMITTEXT, 5, 0);
 
             hWndIconStatic = CreateWindowExA(0, "STATIC", "", WS_CHILD | SS_ICON, 0, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
-            char exePath[MAX_PATH]; GetModuleFileNameA(NULL, exePath, MAX_PATH); HICON hExeIcon = ExtractIconA(GetModuleHandle(NULL), exePath, 0);
+            HICON hExeIcon = (HICON)LoadImageA(GetModuleHandle(NULL), MAKEINTRESOURCE(101), IMAGE_ICON, 48, 48, LR_SHARED);
             if (hExeIcon) SendMessage(hWndIconStatic, STM_SETICON, (WPARAM)hExeIcon, 0); else SendMessage(hWndIconStatic, STM_SETICON, (WPARAM)LoadIcon(NULL, IDI_APPLICATION), 0);
-            char aboutTxt[512]; _snprintf(aboutTxt, sizeof(aboutTxt), "%s\r\n%s", APP_NAME, APP_ABOUT);
+            char aboutTxt[512]; _snprintf(aboutTxt, sizeof(aboutTxt), "%s\r\nVersion: 1.0.0\r\nPublisher: Fratta\r\n\r\n%s", APP_NAME, APP_ABOUT);
             hWndLabelAbout = CreateWindowExA(0, "STATIC", aboutTxt, WS_CHILD | SS_LEFT, 0, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL); ApplyWindowFont(hWndLabelAbout);
             hWndBtnGithub = CreateWindowExA(0, "BUTTON", "About LocalSend", WS_CHILD | BS_PUSHBUTTON, 0, 0, 0, 0, hWnd, (HMENU)IDC_SET_BTN_GH, GetModuleHandle(NULL), NULL); ApplyWindowFont(hWndBtnGithub);
             hWndBtnSupport = CreateWindowExA(0, "BUTTON", APP_SUPPORT_BTN, WS_CHILD | BS_PUSHBUTTON, 0, 0, 0, 0, hWnd, (HMENU)IDC_SET_BTN_SUPP, GetModuleHandle(NULL), NULL); ApplyWindowFont(hWndBtnSupport);
@@ -724,7 +777,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 break;
             }
             if (wmId == IDC_SET_BTN_GH) { ShellExecuteA(NULL, "open", "https://localsend.org", NULL, NULL, SW_SHOWNORMAL); break; }
-            if (wmId == IDC_SET_BTN_SUPP) { ShellExecuteA(NULL, "open", "https://github.com", NULL, NULL, SW_SHOWNORMAL); break; }
+            if (wmId == IDC_SET_BTN_SUPP) { ShellExecuteA(NULL, "open", APP_SUPPORT_URL, NULL, NULL, SW_SHOWNORMAL); break; }
 
             if (wmId == IDC_RECV_RAD_APP || wmId == IDC_RECV_RAD_DL || wmId == IDC_RECV_RAD_CUSTOM) {
                 g_SaveMode = (wmId == IDC_RECV_RAD_APP) ? 0 : (wmId == IDC_RECV_RAD_DL) ? 1 : 2;
@@ -1150,10 +1203,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName = "LocalSendRT_GUI";
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(101));
+    wc.hIconSm = LoadIcon(hInstance, MAKEINTRESOURCE(101));
     if (!RegisterClassExA(&wc)) return 1;
     g_hWndMain = CreateWindowExA(0, "LocalSendRT_GUI", APP_NAME, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 800, 420, NULL, NULL, hInstance, NULL);
     if (!g_hWndMain) return 1;
-    nid.cbSize = sizeof(NOTIFYICONDATAA); nid.hWnd = g_hWndMain; nid.uID = 1; nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP; nid.uCallbackMessage = WM_TRAYICON_MSG; nid.hIcon = LoadIcon(NULL, IDI_APPLICATION); strcpy(nid.szTip, APP_NAME); Shell_NotifyIconA(NIM_ADD, &nid);
+    nid.cbSize = sizeof(NOTIFYICONDATAA); nid.hWnd = g_hWndMain; nid.uID = 1; nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP; nid.uCallbackMessage = WM_TRAYICON_MSG; nid.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(101)); strcpy(nid.szTip, APP_NAME); Shell_NotifyIconA(NIM_ADD, &nid);
  
     // Initialize COM libraries for the folder selection dialog
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);

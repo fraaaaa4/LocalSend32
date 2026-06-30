@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Initializes the Winsock networking library
 bool initWinsock(){
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0){
@@ -12,13 +11,11 @@ bool initWinsock(){
     return true;
 }
 
-// Verifies if the custom LocalSend rules are present in the Windows Firewall configuration
 bool checkRulesExistence(){
     int result = system("netsh advfirewall firewall show rule name=\"LocalSend Custom UDP\" >nul 2>nul");
     return (result == 0);
 }
 
-// Adds firewall rules allowing inbound connections for both TCP and UDP ports
 void autoFirewall() {
     if (checkRulesExistence()){
         printf("Firewall rules already configured. Skipping configuration.\n");
@@ -33,7 +30,6 @@ void autoFirewall() {
     else printf("Can't apply the rules; did you start the app as Administrator?\n");
 }
 
-// Parses LocalSend peer properties from JSON UDP packet payloads
 bool parseLocalSendJSON(const char *json, RemoteDevice *outDevice) {
     memset(outDevice, 0, sizeof(RemoteDevice));
     outDevice->port = 53317;
@@ -96,7 +92,6 @@ bool parseLocalSendJSON(const char *json, RemoteDevice *outDevice) {
     return (strlen(outDevice->alias) > 0);
 }
 
-// Utility function to strip quotes from parsed JSON keys and values
 void cleanQuotes(char *dest, const char *src, size_t maxLen){
     size_t len = strlen(src);
     if (len == 0) { dest[0] = '\0'; return ; }

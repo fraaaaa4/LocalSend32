@@ -12,7 +12,6 @@ struct TlsSocket {
     SSL* ssl;
 };
 
-// EV_PKEY generation helper for dynamic secure socket bindings using OpenSSL
 static EVP_PKEY* generatePrivateKey() {
     EVP_PKEY* pkey = NULL;
     EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
@@ -26,14 +25,13 @@ static EVP_PKEY* generatePrivateKey() {
     return pkey;
 }
 
-// X509 certificate generator for temporary in-memory sessions
 static X509* generateSelfSignedCertificate(EVP_PKEY* pkey) {
     X509* x509 = X509_new();
     if (!x509) return NULL;
 
     ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
     X509_gmtime_adj(X509_get_notBefore(x509), 0);
-    X509_gmtime_adj(X509_get_notAfter(x509), 31536000L); // 1 year validity
+    X509_gmtime_adj(X509_get_notAfter(x509), 31536000L); // 1 year
 
     X509_set_pubkey(x509, pkey);
 
@@ -48,22 +46,18 @@ static X509* generateSelfSignedCertificate(EVP_PKEY* pkey) {
     return x509;
 }
 
-// Global initialization of SSL library and contexts
 bool TlsInitGlobal() {
     SSL_library_init();
     OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
 
-    // Client Context
     g_sslCtxClient = SSL_CTX_new(TLS_client_method());
     if (!g_sslCtxClient) return false;
-    SSL_CTX_set_verify(g_sslCtxClient, SSL_VERIFY_NONE, NULL); // Ignore path validation similarly to Schannel client setup
+    SSL_CTX_set_verify(g_sslCtxClient, SSL_VERIFY_NONE, NULL);
 
-    // Server Context
     g_sslCtxServer = SSL_CTX_new(TLS_server_method());
     if (!g_sslCtxServer) return false;
 
-    // Generate and assign temporary certificate for the receiving session
     EVP_PKEY* pkey = generatePrivateKey();
     if (pkey) {
         X509* cert = generateSelfSignedCertificate(pkey);
@@ -77,7 +71,6 @@ bool TlsInitGlobal() {
     return true;
 }
 
-// Global release of library context resources
 void TlsCleanupGlobal() {
     if (g_sslCtxClient) { SSL_CTX_free(g_sslCtxClient); g_sslCtxClient = NULL; }
     if (g_sslCtxServer) { SSL_CTX_free(g_sslCtxServer); g_sslCtxServer = NULL; }

@@ -11,7 +11,6 @@
 #define PROV_RSA_AES 24
 #endif
 
-// We define SECURITY_WIN32 before including security.h to target the correct SSPI namespace
 #define SECURITY_WIN32
 #include <security.h>
 #include <sspi.h>
@@ -30,24 +29,20 @@
 #define NCRYPT_ECDSA_P256_ALGORITHM L"ECDSA_P256"
 #endif
 
-// Generates an ephemeral self-signed ECDSA certificate using the Windows CNG (Cryptography Next Generation) API.
-// This certificate is registered in-memory and used by Schannel to authenticate SSL/TLS sessions.
+// Generates a temporary self-signed certificate using Windows CNG
 PCCERT_CONTEXT CreateSelfSignedCertificate() {
     NCRYPT_PROV_HANDLE hProvider = 0;
     NCRYPT_KEY_HANDLE hKey = 0;
     PCCERT_CONTEXT pCertContext = NULL;
     SECURITY_STATUS status;
 
-    // Open the default software key storage provider to host our certificate keys
     status = NCryptOpenStorageProvider(&hProvider, MS_SOFTWARE_KEY_STORAGE_PROVIDER, 0);
-
     if (status != ERROR_SUCCESS) {
         printf("[CNG] Provider error: 0x%08lX\n", (long)status);
         return NULL;
     }
 
-    // Create a new key container using the ECDSA P-256 algorithm.
-    // The key is marked silent and overwrites any existing key container with the same name.
+    // Generate ECC key pair
     status = NCryptCreatePersistedKey(
         hProvider,
         &hKey,
@@ -63,7 +58,6 @@ PCCERT_CONTEXT CreateSelfSignedCertificate() {
         return NULL;
     }
 
-    // Generate the actual key pair within the initialized container
     status = NCryptFinalizeKey(hKey, 0);
     if (status != ERROR_SUCCESS) {
         NCryptFreeObject(hKey);
@@ -71,7 +65,7 @@ PCCERT_CONTEXT CreateSelfSignedCertificate() {
         return NULL;
     }
 
-    // Set up the distinguished name (Subject DN) for the certificate
+    // Prepare certificate subject name
     CERT_NAME_BLOB nameBlob;
     memset(&nameBlob, 0, sizeof(nameBlob));
     char certName[] = "CN=LocalSend-Surface";
@@ -81,12 +75,10 @@ PCCERT_CONTEXT CreateSelfSignedCertificate() {
         CertStrToNameA(X509_ASN_ENCODING, certName, CERT_X500_NAME_STR, NULL, nameBlob.pbData, &nameBlob.cbData, NULL);
     }
 
-    // Use ECDSA with SHA-256 for the certificate signature algorithm
     CRYPT_ALGORITHM_IDENTIFIER sigAlg;
     memset(&sigAlg, 0, sizeof(sigAlg));
     sigAlg.pszObjId = szOID_ECDSA_SHA256;
 
-    // The certificate is valid immediately and expires in 1 year
     SYSTEMTIME startTime, endTime;
     GetSystemTime(&startTime);
     GetSystemTime(&endTime);
@@ -107,11 +99,10 @@ PCCERT_CONTEXT CreateSelfSignedCertificate() {
         printf("[CryptoAPI] CertCreateSelfSignCertificate failed: 0x%08lX\n", (long)GetLastError());
     }
 
-    // Release allocated CNG handles and DN name buffers
+    // Clean up CNG handles and memory
     if (hKey) NCryptFreeObject(hKey);
     if (hProvider) NCryptFreeObject(hProvider);
     if (nameBlob.pbData) free(nameBlob.pbData);
 
     return pCertContext;
 }
-

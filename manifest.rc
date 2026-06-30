@@ -1,5 +1,45 @@
 #include <windows.h>
 
+// ============================================================================
+// APPLICATION ICON
+// ============================================================================
+// The first icon in the resource file determines the application's executable icon in Windows Explorer.
+101 ICON "LocalSend.ico"
+
+// ============================================================================
+// VERSION METADATA (Change these values to modify your app's metadata)
+// ============================================================================
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0" // US English, Unicode charset
+        BEGIN
+            VALUE "CompanyName",      "Fratta"
+            VALUE "FileDescription",  "LocalSend client built with C/Win32 APIs"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "LocalSend"
+            VALUE "OriginalFilename", "LocalSend.exe"
+            VALUE "ProductName",      "LocalSend32 / LocalSend RT"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+// ============================================================================
+// APPLICATION MANIFEST (For enabling visual styles / v6 common controls)
+// ============================================================================
 1 24 MOVEABLE PURE
 BEGIN
     "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>\r\n"

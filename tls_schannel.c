@@ -12,8 +12,9 @@ struct TlsSocket {
     SOCKET sock;
     CtxtHandle hContext;
     bool hasContext;
-    char leftOverBuffer[32768];
+    char leftOverBuffer[131072];
     DWORD cbLeftOver;
+    char encBuffer[131072];
 };
 
 static CredHandle g_hCredClient;
@@ -21,9 +22,7 @@ static CredHandle g_hCredServer;
 static bool g_bCredClientInit = false;
 static bool g_bCredServerInit = false;
 
-// Sets up default client and server credentials for Schannel, including a dynamically generated self-signed certificate for local authentication.
 bool TlsInitGlobal() {
-    // Client Credential
     SCHANNEL_CRED schannelCred = {0};
     schannelCred.dwVersion = SCHANNEL_CRED_VERSION;
     schannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT;
@@ -34,7 +33,6 @@ bool TlsInitGlobal() {
         g_bCredClientInit = true;
     }
 
-    // Server Credential (cert.c dynamic cert binding)
     PCCERT_CONTEXT pCert = CreateSelfSignedCertificate();
     if (pCert) {
         SCHANNEL_CRED schServerCred = {0};
@@ -56,7 +54,6 @@ void TlsCleanupGlobal() {
     if (g_bCredServerInit) { FreeCredentialsHandle(&g_hCredServer); g_bCredServerInit = false; }
 }
 
-// Executes the client-side Schannel handshake logic by exchanging security tokens with the remote host until a secure context is established.
 static bool RunSchannelClientHandshake(SOCKET serverSocket, CtxtHandle* phContext, const char* targetHost) {
     SecBufferDesc inBufferDesc, outBufferDesc;
     SecBuffer inBuffers[2], outBuffers[1];
@@ -107,7 +104,6 @@ static bool RunSchannelClientHandshake(SOCKET serverSocket, CtxtHandle* phContex
     return (scRet == SEC_E_OK);
 }
 
-// Executes the server-side Schannel handshake logic by validating incoming client tokens and returning the server's signed credentials.
 static bool RunSchannelServerHandshake(SOCKET clientSocket, CtxtHandle* phContext) {
     SecBufferDesc inBufferDesc, outBufferDesc;
     SecBuffer inBuffers[2], outBuffers[1];
@@ -190,16 +186,14 @@ TlsSocket* TlsAccept(SOCKET clientSock) {
     return tls;
 }
 
-// Reads encrypted packets from the socket, passing them through DecryptMessage to fill the caller's output buffer with plaintext data.
 int TlsRead(TlsSocket* tls, char* outBuffer, int maxLen) {
     if (!tls || !tls->hasContext) return -1;
 
-    char encBuffer[32768];
     DWORD cbIoBuffer = 0;
     int totalPlaintext = 0;
 
     if (tls->cbLeftOver > 0) {
-        memcpy(encBuffer, tls->leftOverBuffer, tls->cbLeftOver);
+        memcpy(tls->encBuffer, tls->leftOverBuffer, tls->cbLeftOver);
         cbIoBuffer = tls->cbLeftOver;
         tls->cbLeftOver = 0;
     }
@@ -207,13 +201,13 @@ int TlsRead(TlsSocket* tls, char* outBuffer, int maxLen) {
     bool keepDecrypting = true;
     while (keepDecrypting) {
         if (cbIoBuffer == 0) {
-            int bytesRead = recv(tls->sock, encBuffer, sizeof(encBuffer), 0);
+            int bytesRead = recv(tls->sock, tls->encBuffer, 131072, 0);
             if (bytesRead <= 0) return totalPlaintext > 0 ? totalPlaintext : bytesRead;
             cbIoBuffer = bytesRead;
         }
 
         SecBuffer msgBuffers[4] = {
-            { cbIoBuffer, SECBUFFER_DATA, encBuffer },
+            { cbIoBuffer, SECBUFFER_DATA, tls->encBuffer },
             { 0, SECBUFFER_EMPTY, NULL },
             { 0, SECBUFFER_EMPTY, NULL },
             { 0, SECBUFFER_EMPTY, NULL }
@@ -233,7 +227,7 @@ int TlsRead(TlsSocket* tls, char* outBuffer, int maxLen) {
             }
 
             if (clearData && clearLen > 0) {
-                if (totalPlaintext + (int)clearLen < maxLen) {
+                if (totalPlaintext + (int)clearLen <= maxLen) {
                     memcpy(outBuffer + totalPlaintext, clearData, clearLen);
                     totalPlaintext += clearLen;
                 }
@@ -245,14 +239,12 @@ int TlsRead(TlsSocket* tls, char* outBuffer, int maxLen) {
             }
 
             if (pExtra && pExtra->cbBuffer > 0) {
-                // Se c'è del buffer rimanente (per la prossima richiesta HTTP keep-alive)
                 if (totalPlaintext > 0) {
-                    // Salviamo nei leftover del socket per la prossima chiamata TlsRead
                     memcpy(tls->leftOverBuffer, pExtra->pvBuffer, pExtra->cbBuffer);
                     tls->cbLeftOver = pExtra->cbBuffer;
                     break;
                 } else {
-                    memmove(encBuffer, pExtra->pvBuffer, pExtra->cbBuffer);
+                    memmove(tls->encBuffer, pExtra->pvBuffer, pExtra->cbBuffer);
                     cbIoBuffer = pExtra->cbBuffer;
                 }
             } else {
@@ -261,7 +253,7 @@ int TlsRead(TlsSocket* tls, char* outBuffer, int maxLen) {
             }
         }
         else if (decRet == SEC_E_INCOMPLETE_MESSAGE) {
-            int bytesRead = recv(tls->sock, encBuffer + cbIoBuffer, sizeof(encBuffer) - cbIoBuffer, 0);
+            int bytesRead = recv(tls->sock, tls->encBuffer + cbIoBuffer, 131072 - cbIoBuffer, 0);
             if (bytesRead <= 0) return totalPlaintext > 0 ? totalPlaintext : bytesRead;
             cbIoBuffer += bytesRead;
         }
@@ -272,7 +264,6 @@ int TlsRead(TlsSocket* tls, char* outBuffer, int maxLen) {
     return totalPlaintext;
 }
 
-// Packs the plaintext data into SSPI stream buffers, encrypts them using EncryptMessage, and writes the resulting cyphertext to the wire.
 int TlsWrite(TlsSocket* tls, const char* message, int len) {
     if (!tls || !tls->hasContext) return -1;
 

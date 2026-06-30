@@ -25,7 +25,7 @@ int g_fileQueueCount = 0;
 volatile LONG g_completedFilesCount = 0;
 char g_lastSenderDeviceName[128] = {0};
 
-// Handles the HTTP protocol dialogue with the sender (parsing prepare-upload requests, managing PIN verification, showing UI confirm dialogs, and writing uploaded files to disk).
+// Processes incoming HTTP requests and saves uploaded files
 void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* clientIP, bool useTls) {
     char cleartextBuffer[32768];
     int clearLen = 0;
@@ -282,11 +282,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
         } else {
             LONG completed = InterlockedIncrement((LONG volatile *)&g_completedFilesCount);
             char httpOk[256];
-            if (completed >= g_fileQueueCount) {
-                sprintf(httpOk, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
-            } else {
-                sprintf(httpOk, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: keep-alive\r\n\r\n");
-            }
+            sprintf(httpOk, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
 
             if (useTls) TlsWrite(tls, httpOk, strlen(httpOk));
             else send(clientSocket, httpOk, strlen(httpOk), 0);
@@ -303,7 +299,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
     }
 }
 
-// Spawned for each connected TCP client. If encryption is requested, it initializes a local SSL session (OpenSSL or Schannel depending on build configuration) before proceeding.
+// Handles client connection (initiating TLS if needed)
 DWORD WINAPI ClientThread(LPVOID lpParam) {
     ClientContext* ctx = (ClientContext*)lpParam;
     bool useTls = (g_EnableEncryption != 0);
@@ -323,7 +319,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam) {
     return 0;
 }
 
-// Binds to the LocalSend TCP port, marks it as listening, and loops infinitely to accept connections and spawn connection threads.
+// Main TCP server loop
 DWORD WINAPI tcpServerThread(LPVOID lpParam) {
     SOCKET listeningSocket = INVALID_SOCKET;
     SOCKET clientSocket = INVALID_SOCKET;

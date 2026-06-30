@@ -66,7 +66,6 @@ typedef struct {
 extern HWND g_hWndMain;
 extern HWND hWndStatus;
 
-// Global settings and dynamic hashtag variables
 extern int g_SaveMode;
 extern int g_QuickSave;
 extern char g_CustomPath[MAX_PATH];
@@ -88,9 +87,7 @@ void autoFirewall();
 bool parseLocalSendJSON(const char *json, RemoteDevice *outDevice);
 void cleanQuotes(char *dest, const char *src, size_t maxLen);
 
-// Calculates where to save received files depending on configuration options
 void GetSaveDirectory(char* outDir, size_t maxLen);
 void GetConfiguredSavePath(char* outPath, size_t maxLen, const char* fileName);
 
 #endif
-

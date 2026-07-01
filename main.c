@@ -734,7 +734,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         case WM_LBUTTONDOWN: { int xPos = LOWORD(lParam); int mainTab = TabCtrl_GetCurSel(hWndTab); if ((mainTab == 0 || mainTab == 1) && xPos >= g_SplitterPos && xPos <= g_SplitterPos + 10) { g_bDraggingSplitter = true; SetCapture(hWnd); SetCursor(LoadCursor(NULL, IDC_SIZEWE)); } break; }
         case WM_MOUSEMOVE: { int mainTab = TabCtrl_GetCurSel(hWndTab); if (mainTab != 0 && mainTab != 1) break; int xPos = LOWORD(lParam); if (g_bDraggingSplitter) { if (xPos > 200 && xPos < 600) { g_SplitterPos = xPos; RECT rect; GetClientRect(hWnd, &rect); InvalidateRect(hWnd, NULL, TRUE); ResizeControls(hWnd, rect.right, rect.bottom); } } else if (xPos >= g_SplitterPos && xPos <= g_SplitterPos + 10) { SetCursor(LoadCursor(NULL, IDC_SIZEWE)); } break; }
         case WM_LBUTTONUP: { if (g_bDraggingSplitter) { g_bDraggingSplitter = false; ReleaseCapture(); } break; }
-        case WM_CTLCOLORSTATIC: { HDC hdcStatic = (HDC)wParam; SetBkMode(hdcStatic, TRANSPARENT); return (LRESULT)GetSysColorBrush(COLOR_BTNFACE); }
+        case WM_CTLCOLORSTATIC: {
+            HDC hdcStatic = (HDC)wParam;
+            SetBkMode(hdcStatic, TRANSPARENT);
+            BOOL classic = TRUE;
+            HMODULE hTheme = LoadLibraryA("uxtheme.dll");
+            if (hTheme) {
+                typedef BOOL(WINAPI* pfnIsThemeActive)();
+                pfnIsThemeActive fnIsThemeActive = (pfnIsThemeActive)GetProcAddress(hTheme, "IsThemeActive");
+                typedef BOOL(WINAPI* pfnIsAppThemed)();
+                pfnIsAppThemed fnIsAppThemed = (pfnIsAppThemed)GetProcAddress(hTheme, "IsAppThemed");
+                if (fnIsThemeActive && fnIsAppThemed) {
+                    if (fnIsThemeActive() && fnIsAppThemed()) {
+                        classic = FALSE;
+                    }
+                }
+                FreeLibrary(hTheme);
+            }
+            return (LRESULT)GetSysColorBrush(classic ? COLOR_BTNFACE : COLOR_WINDOW);
+        }
 
         case WM_CONTEXTMENU: {
             HWND hTrigger = (HWND)wParam;

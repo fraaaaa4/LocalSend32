@@ -7,14 +7,18 @@ It integrates the LocalSend v2 protocol using OpenSSL. Settings are saved on an 
 
 # Files structure
 - cert.c/cert.h : generates self-signed certificates using NCrypt APIs for TLS.
-- main.c : main GUI loop, settings parser, UI event dispatching
+- dialogs.c/dialogs.h : dialog window procedures, such as text input and manual IP input
+- main.c : main GUI loop, message dispatching, window resizing
 - manifest.rc/manifest.o : theme manifest
 - network_tcp.c/network_tcp.h : handles incoming TCP server requests, for receiving files, using TlsSocket abstraction
 - network_tx.c/network_tx.h : handless outbound TCP client connections, using TlsSocket astraction
 - network_udp.c/network_udp.h: handles UDP multicast discovery beacons
+- openssl_dyn.c/openssl_dyn.h : dynamically loads OpenSSL functions from OpenSSL DLLs at runtime
+- settings.c/settings.h : loading and saving settings from .ini file
 - tls_layer,h : abstract TLS socket API definition
 - tls_schannel.h : Windows Schannel/SSPI implementation (LocalSend RT)
 - tls_openssl.c : OpenSSL TLS implementation (LocalSend32)
+- ui_creator.c/ui_creator.h : creation and layout of Win32 GUI controls
 - utils.c/utils.h : helper utilities, such as JSON parser, file type mapping, path helpers
 
 # Networking stuff
@@ -35,9 +39,16 @@ As for the RT build, first compile the manifest for the theme (which is differen
   i686-w64-mingw32-windres -o manifest_x86.o manifest.rc
 ```
 
-Then compile the project itself:
+Then compile the project itself. Replace `<openssl_include_dir>` with the path containing the OpenSSL DLLs:
 ```bash
-i686-w64-mingw32-gcc -O2 -Wall       main.c network_tcp.c network_tx.c network_udp.c tls_openssl.c utils.c manifest_x86.o       -o LocalSend32.exe       -I/home/fratta/Scaricati/openssl-stuff/include       -L/home/fratta/Scaricati/openssl-stuff       -lssl -lcrypto -lws2_32 -lcomctl32 -lshlwapi -lole32 -luuid -lcomdlg32       -mwindows -D_WIN32_WINNT=0x0500
+i686-w64-mingw32-gcc -O2 -Wall \
+    main.c dialogs.c settings.c ui_creator.c openssl_dyn.c \
+    network_tcp.c network_tx.c network_udp.c tls_openssl.c utils.c \
+    manifest_x86.o \
+    -o LocalSend32.exe \
+    -I<openssl_include_dir> \
+    -lws2_32 -lcomctl32 -lshlwapi -lole32 -luuid -lcomdlg32 \
+    -mwindows
 ```
 
 ## Compatibility

@@ -14,8 +14,14 @@ typedef struct {
 
 // Contains all context needed to execute an outbound file transfer batch to a remote peer.
 typedef struct {
-    char targetIP[16];
-    int targetPort;
+    char ipAddress[16];
+    int port;
+    char alias[64];
+} TargetDevice;
+
+typedef struct {
+    TargetDevice targets[32];
+    int targetCount;
     FileToSend files[50];
     int fileCount;
 } SendSessionContext;

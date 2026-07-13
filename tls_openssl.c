@@ -1,8 +1,45 @@
 #include "tls_layer.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#include "openssl_dyn.h"
+
+#define SSL_CTX_new dyn_SSL_CTX_new
+#define SSL_CTX_free dyn_SSL_CTX_free
+#define SSL_CTX_set_verify dyn_SSL_CTX_set_verify
+#define SSL_CTX_use_certificate dyn_SSL_CTX_use_certificate
+#define SSL_CTX_use_PrivateKey dyn_SSL_CTX_use_PrivateKey
+#define TLS_client_method dyn_TLS_client_method
+#define TLS_server_method dyn_TLS_server_method
+#define SSL_new dyn_SSL_new
+#define SSL_set_fd dyn_SSL_set_fd
+#define SSL_connect dyn_SSL_connect
+#define SSL_accept dyn_SSL_accept
+#define SSL_free dyn_SSL_free
+#define SSL_read dyn_SSL_read
+#define SSL_write dyn_SSL_write
+#define SSL_shutdown dyn_SSL_shutdown
+
+#define EVP_PKEY_CTX_new_id dyn_EVP_PKEY_CTX_new_id
+#define EVP_PKEY_keygen_init dyn_EVP_PKEY_keygen_init
+#define EVP_PKEY_CTX_set_rsa_keygen_bits dyn_EVP_PKEY_CTX_set_rsa_keygen_bits
+#define EVP_PKEY_keygen dyn_EVP_PKEY_keygen
+#define EVP_PKEY_CTX_free dyn_EVP_PKEY_CTX_free
+#define EVP_PKEY_free dyn_EVP_PKEY_free
+
+#define X509_new dyn_X509_new
+#define X509_get_serialNumber dyn_X509_get_serialNumber
+#define ASN1_INTEGER_set dyn_ASN1_INTEGER_set
+#define X509_getm_notBefore dyn_X509_getm_notBefore
+#define X509_getm_notAfter dyn_X509_getm_notAfter
+#define X509_gmtime_adj dyn_X509_gmtime_adj
+#define X509_set_pubkey dyn_X509_set_pubkey
+#define X509_get_subject_name dyn_X509_get_subject_name
+#define X509_NAME_add_entry_by_txt dyn_X509_NAME_add_entry_by_txt
+#define X509_set_issuer_name dyn_X509_set_issuer_name
+#define EVP_sha256 dyn_EVP_sha256
+#define X509_sign dyn_X509_sign
+#define X509_free dyn_X509_free
+
 
 static SSL_CTX* g_sslCtxClient = NULL;
 static SSL_CTX* g_sslCtxServer = NULL;
@@ -47,9 +84,8 @@ static X509* generateSelfSignedCertificate(EVP_PKEY* pkey) {
 }
 
 bool TlsInitGlobal() {
-    SSL_library_init();
-    OpenSSL_add_all_algorithms();
-    SSL_load_error_strings();
+    if (!LoadOpenSSLDynamically()) return false;
+    dyn_OPENSSL_init_ssl(0, NULL);
 
     g_sslCtxClient = SSL_CTX_new(TLS_client_method());
     if (!g_sslCtxClient) return false;
@@ -74,6 +110,7 @@ bool TlsInitGlobal() {
 void TlsCleanupGlobal() {
     if (g_sslCtxClient) { SSL_CTX_free(g_sslCtxClient); g_sslCtxClient = NULL; }
     if (g_sslCtxServer) { SSL_CTX_free(g_sslCtxServer); g_sslCtxServer = NULL; }
+    FreeOpenSSLDynamically();
 }
 
 TlsSocket* TlsConnect(SOCKET sock, const char* targetIP) {

@@ -10,8 +10,8 @@
 // VERSION METADATA (Change these values to modify your app's metadata)
 // ============================================================================
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,0,0
-PRODUCTVERSION  1,0,0,0
+FILEVERSION     1,1,0,0
+PRODUCTVERSION  1,1,0,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 FILEFLAGS       0
 FILEOS          VOS_NT_WINDOWS32
@@ -24,11 +24,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "Fratta"
             VALUE "FileDescription",  "LocalSend client built with C/Win32 APIs"
-            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "FileVersion",      "1.1.0.0"
             VALUE "InternalName",     "LocalSend"
             VALUE "OriginalFilename", "LocalSend.exe"
             VALUE "ProductName",      "LocalSend32 / LocalSend RT"
-            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "ProductVersion",   "1.1.0.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -44,7 +44,7 @@ END
 BEGIN
     "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>\r\n"
     "<assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"">\r\n"
-    "  <assemblyIdentity version=""1.0.0.0"" processorArchitecture=""*"" name=""LocalSendRT"" type=""win32"" />\r\n"
+    "  <assemblyIdentity version=""1.1.0.0"" processorArchitecture=""*"" name=""LocalSendRT"" type=""win32"" />\r\n"
     "  <description>LocalSend Native Client for Windows RT</description>\r\n"
     "  <dependency>\r\n"
     "    <dependentAssembly>\r\n"

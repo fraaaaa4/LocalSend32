@@ -76,215 +76,239 @@ DWORD WINAPI StartSendSessionThread(LPVOID lpParam) {
 
     bool useTls = (g_EnableEncryption != 0);
 
-    SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    struct sockaddr_in targetAddr;
-    targetAddr.sin_family = AF_INET; targetAddr.sin_port = htons(ctx->targetPort); targetAddr.sin_addr.s_addr = inet_addr(ctx->targetIP);
-
-    if (connect(sock, (SOCKADDR*)&targetAddr, sizeof(targetAddr)) == SOCKET_ERROR) {
+    for (int t = 0; t < ctx->targetCount; t++) {
+        char* alias = ctx->targets[t].alias;
+        char* targetIP = ctx->targets[t].ipAddress;
+        int targetPort = ctx->targets[t].port;
+        
+        char statusMsg[512];
+        _snprintf(statusMsg, sizeof(statusMsg), "Connecting to %s (%d/%d)...", alias, t + 1, ctx->targetCount);
         if (g_hWndMain) {
-            PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString("Connection failed. Target not reachable."));
-            PostMessage(g_hWndMain, WM_SEND_DONE, FALSE, 0);
-        }
-        closesocket(sock); free(ctx); return 1;
-    }
-
-    TlsSocket* tls = NULL;
-    if (useTls) {
-        tls = TlsConnect(sock, ctx->targetIP);
-        if (!tls) {
-            if (g_hWndMain) {
-                PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString("TLS Handshake rejected by remote peer."));
-                PostMessage(g_hWndMain, WM_SEND_DONE, FALSE, 0);
-            }
-            closesocket(sock); free(ctx); return 1;
-        }
-    }
-
-    char jsonPayload[4096] = {0};
-    sprintf(jsonPayload, "{\"info\":{\"alias\":\"%s\",\"version\":\"2.0\",\"deviceModel\":\"%s\",\"deviceType\":\"%s\",\"fingerprint\":\"%s\",\"port\":%d,\"protocol\":\"%s\",\"download\":true},\"files\":{",
-            g_MyDeviceName, g_DeviceModel, g_DeviceType, g_MyFingerprint, g_Port, useTls ? "https" : "http");
-
-    for (int i = 0; i < ctx->fileCount; i++) {
-        char fileChunk[512];
-        sprintf(fileChunk, "\"%s\":{\"id\":\"%s\",\"fileName\":\"%s\",\"size\":%lld,\"fileType\":\"application/octet-stream\"}%s",
-                ctx->files[i].fileId, ctx->files[i].fileId, ctx->files[i].fileName, ctx->files[i].fileSize,
-                (i == ctx->fileCount - 1) ? "" : ",");
-        strcat(jsonPayload, fileChunk);
-    }
-    strcat(jsonPayload, "}}");
-
-    char httpRequest[5120];
-    sprintf(httpRequest, "POST /api/localsend/v2/prepare-upload HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
-            ctx->targetIP, (int)strlen(jsonPayload), jsonPayload);
-
-    SendHttpPayload(sock, tls, httpRequest, strlen(httpRequest), useTls);
-
-    char rxPlaintext[8192] = {0};
-    int rxBytes = ReadHttpPlaintext(sock, tls, rxPlaintext, sizeof(rxPlaintext), useTls);
-
-    if (rxBytes > 0 && strstr(rxPlaintext, "HTTP/1.1 401") != NULL) {
-        if (useTls) { TlsFreeSocket(tls); tls = NULL; }
-        closesocket(sock);
-
-        PinRequest req;
-        req.targetName = ctx->targetIP;
-        req.success = false;
-        req.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-        if (req.hEvent) {
-            PostMessage(g_hWndMain, WM_REQUEST_PIN, 0, (LPARAM)&req);
-            WaitForSingleObject(req.hEvent, INFINITE);
-            CloseHandle(req.hEvent);
-        }
-
-        if (!req.success) {
-            if (g_hWndMain) {
-                PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString("PIN required but not provided."));
-                PostMessage(g_hWndMain, WM_SEND_DONE, FALSE, 0);
-            }
-            free(ctx); return 1;
-        }
-
-        sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (connect(sock, (SOCKADDR*)&targetAddr, sizeof(targetAddr)) == SOCKET_ERROR) {
-            if (g_hWndMain) {
-                PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString("Retry connection failed."));
-                PostMessage(g_hWndMain, WM_SEND_DONE, FALSE, 0);
-            }
-            free(ctx); return 1;
-        }
-
-        if (useTls) {
-            tls = TlsConnect(sock, ctx->targetIP);
-            if (!tls) {
-                if (g_hWndMain) {
-                    PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString("Retry TLS Handshake rejected."));
-                    PostMessage(g_hWndMain, WM_SEND_DONE, FALSE, 0);
-                }
-                closesocket(sock); free(ctx); return 1;
-            }
-        }
-
-        sprintf(httpRequest, "POST /api/localsend/v2/prepare-upload?pin=%s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
-                req.pinCode, ctx->targetIP, (int)strlen(jsonPayload), jsonPayload);
-
-        SendHttpPayload(sock, tls, httpRequest, strlen(httpRequest), useTls);
-        rxBytes = ReadHttpPlaintext(sock, tls, rxPlaintext, sizeof(rxPlaintext), useTls);
-    }
-
-    if (useTls) { TlsFreeSocket(tls); tls = NULL; }
-    closesocket(sock);
-
-    if (rxBytes <= 0 || strstr(rxPlaintext, "HTTP/1.1 200") == NULL) {
-        if (g_hWndMain) {
-            PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString("Receiver rejected the request or invalid PIN."));
-            PostMessage(g_hWndMain, WM_SEND_DONE, FALSE, 0);
-        }
-        free(ctx); return 1;
-    }
-
-    char serverSessionId[128] = {0};
-    char* sessPtr = strstr(rxPlaintext, "\"sessionId\":\"");
-    if (sessPtr) {
-        sessPtr += 13;
-        char* sessEnd = strchr(sessPtr, '"');
-        if (sessEnd && (sessEnd - sessPtr) < 127) {
-            strncpy(serverSessionId, sessPtr, sessEnd - sessPtr);
-            serverSessionId[sessEnd - sessPtr] = '\0';
-        }
-    }
-
-    if (strlen(serverSessionId) == 0) {
-        if (g_hWndMain) {
-            PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString("Transfer canceled: invalid SessionId."));
-            PostMessage(g_hWndMain, WM_SEND_DONE, FALSE, 0);
-        }
-        free(ctx); return 1;
-    }
-
-    FileTokenMap fileTokens[50];
-    memset(fileTokens, 0, sizeof(fileTokens));
-
-    char* filesBlock = strstr(rxPlaintext, "\"files\":{");
-    if (filesBlock) {
-        for (int i = 0; i < ctx->fileCount; i++) {
-            char searchStr[150];
-            sprintf(searchStr, "\"%s\":\"", ctx->files[i].fileId);
-            char* tokPtr = strstr(filesBlock, searchStr);
-            if (tokPtr) {
-                tokPtr += strlen(searchStr);
-                char* tokEnd = strchr(tokPtr, '"');
-                if (tokEnd) {
-                    strncpy(fileTokens[i].fileId, ctx->files[i].fileId, 127);
-                    strncpy(fileTokens[i].token, tokPtr, tokEnd - tokPtr);
-                    fileTokens[i].token[tokEnd - tokPtr] = '\0';
-                }
-            }
-        }
-    }
-
-    for (int i = 0; i < ctx->fileCount; i++) {
-        char currentToken[128] = "";
-        for (int j = 0; j < ctx->fileCount; j++) {
-            if (strcmp(fileTokens[j].fileId, ctx->files[i].fileId) == 0) {
-                strcpy(currentToken, fileTokens[j].token); break;
-            }
-        }
-
-        if (strlen(currentToken) == 0) continue;
-
-        if (g_hWndMain) {
-            char statusMsg[512]; _snprintf(statusMsg, sizeof(statusMsg), "Uploading: %s...", ctx->files[i].fileName);
             PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 1, (LPARAM)AllocateString(statusMsg));
         }
 
-        FILE* f = fopen(ctx->files[i].filePath, "rb");
-        if (!f) continue;
+        SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        struct sockaddr_in targetAddr;
+        targetAddr.sin_family = AF_INET; 
+        targetAddr.sin_port = htons(targetPort); 
+        targetAddr.sin_addr.s_addr = inet_addr(targetIP);
 
-        SOCKET uploadSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (connect(uploadSock, (SOCKADDR*)&targetAddr, sizeof(targetAddr)) == SOCKET_ERROR) { fclose(f); continue; }
+        if (connect(sock, (SOCKADDR*)&targetAddr, sizeof(targetAddr)) == SOCKET_ERROR) {
+            _snprintf(statusMsg, sizeof(statusMsg), "Connection to %s failed.", alias);
+            if (g_hWndMain) {
+                PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString(statusMsg));
+                Sleep(2000);
+            }
+            closesocket(sock); 
+            continue;
+        }
 
-        TlsSocket* uploadTls = NULL;
+        TlsSocket* tls = NULL;
         if (useTls) {
-            uploadTls = TlsConnect(uploadSock, ctx->targetIP);
-            if (!uploadTls) { closesocket(uploadSock); fclose(f); continue; }
+            tls = TlsConnect(sock, targetIP);
+            if (!tls) {
+                _snprintf(statusMsg, sizeof(statusMsg), "TLS handshake with %s rejected.", alias);
+                if (g_hWndMain) {
+                    PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString(statusMsg));
+                    Sleep(2000);
+                }
+                closesocket(sock); 
+                continue;
+            }
         }
 
-        char uploadHeader[1024];
-        sprintf(uploadHeader, "POST /api/localsend/v2/upload?sessionId=%s&fileId=%s&token=%s HTTP/1.1\r\n"
-                              "Host: %s\r\n"
-                              "Content-Type: application/octet-stream\r\n"
-                              "Content-Length: %lld\r\n"
-                              "Connection: close\r\n\r\n",
-                serverSessionId, ctx->files[i].fileId, currentToken, ctx->targetIP, ctx->files[i].fileSize);
+        char jsonPayload[4096] = {0};
+        sprintf(jsonPayload, "{\"info\":{\"alias\":\"%s\",\"version\":\"2.0\",\"deviceModel\":\"%s\",\"deviceType\":\"%s\",\"fingerprint\":\"%s\",\"port\":%d,\"protocol\":\"%s\",\"download\":true},\"files\":{",
+                g_MyDeviceName, g_DeviceModel, g_DeviceType, g_MyFingerprint, g_Port, useTls ? "https" : "http");
 
-        SendHttpPayload(uploadSock, uploadTls, uploadHeader, strlen(uploadHeader), useTls);
+        for (int i = 0; i < ctx->fileCount; i++) {
+            char fileChunk[512];
+            sprintf(fileChunk, "\"%s\":{\"id\":\"%s\",\"fileName\":\"%s\",\"size\":%lld,\"fileType\":\"application/octet-stream\"}%s",
+                    ctx->files[i].fileId, ctx->files[i].fileId, ctx->files[i].fileName, ctx->files[i].fileSize,
+                    (i == ctx->fileCount - 1) ? "" : ",");
+            strcat(jsonPayload, fileChunk);
+        }
+        strcat(jsonPayload, "}}");
 
-        char readBuf[8192];
-        int bytesRead = 0;
-        long long totalSent = 0;
+        char httpRequest[5120];
+        sprintf(httpRequest, "POST /api/localsend/v2/prepare-upload HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+                targetIP, (int)strlen(jsonPayload), jsonPayload);
 
-        while ((bytesRead = (int)fread(readBuf, 1, sizeof(readBuf), f)) > 0) {
+        SendHttpPayload(sock, tls, httpRequest, strlen(httpRequest), useTls);
+
+        char rxPlaintext[8192] = {0};
+        int rxBytes = ReadHttpPlaintext(sock, tls, rxPlaintext, sizeof(rxPlaintext), useTls);
+
+        if (rxBytes > 0 && strstr(rxPlaintext, "HTTP/1.1 401") != NULL) {
+            if (useTls) { TlsFreeSocket(tls); tls = NULL; }
+            closesocket(sock);
+
+            PinRequest req;
+            req.targetName = targetIP;
+            req.success = false;
+            req.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+            if (req.hEvent) {
+                PostMessage(g_hWndMain, WM_REQUEST_PIN, 0, (LPARAM)&req);
+                WaitForSingleObject(req.hEvent, INFINITE);
+                CloseHandle(req.hEvent);
+            }
+
+            if (!req.success) {
+                _snprintf(statusMsg, sizeof(statusMsg), "%s: PIN required but not provided.", alias);
+                if (g_hWndMain) {
+                    PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString(statusMsg));
+                    Sleep(2000);
+                }
+                continue;
+            }
+
+            sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            if (connect(sock, (SOCKADDR*)&targetAddr, sizeof(targetAddr)) == SOCKET_ERROR) {
+                _snprintf(statusMsg, sizeof(statusMsg), "%s: Retry connection failed.", alias);
+                if (g_hWndMain) {
+                    PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString(statusMsg));
+                    Sleep(2000);
+                }
+                continue;
+            }
+
             if (useTls) {
-                if (TlsWrite(uploadTls, readBuf, bytesRead) <= 0) break;
-            } else {
-                if (send(uploadSock, readBuf, bytesRead, 0) == SOCKET_ERROR) break;
+                tls = TlsConnect(sock, targetIP);
+                if (!tls) {
+                    _snprintf(statusMsg, sizeof(statusMsg), "%s: Retry TLS Handshake rejected.", alias);
+                    if (g_hWndMain) {
+                        PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString(statusMsg));
+                        Sleep(2000);
+                    }
+                    closesocket(sock); 
+                    continue;
+                }
             }
 
-            totalSent += bytesRead;
+            sprintf(httpRequest, "POST /api/localsend/v2/prepare-upload?pin=%s HTTP/1.1\r\nHost: %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s",
+                    req.pinCode, targetIP, (int)strlen(jsonPayload), jsonPayload);
 
-            if (g_hWndMain && ctx->files[i].fileSize > 0) {
-                int pct = (int)((totalSent * 100) / ctx->files[i].fileSize);
-                HWND hProg = GetDlgItem(g_hWndMain, IDC_SEND_PROGRESS);
-                if (hProg) SendMessage(hProg, PBM_SETPOS, pct, 0);
+            SendHttpPayload(sock, tls, httpRequest, strlen(httpRequest), useTls);
+            rxBytes = ReadHttpPlaintext(sock, tls, rxPlaintext, sizeof(rxPlaintext), useTls);
+        }
+
+        if (useTls) { TlsFreeSocket(tls); tls = NULL; }
+        closesocket(sock);
+
+        if (rxBytes <= 0 || strstr(rxPlaintext, "HTTP/1.1 200") == NULL) {
+            _snprintf(statusMsg, sizeof(statusMsg), "%s rejected the transfer.", alias);
+            if (g_hWndMain) {
+                PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString(statusMsg));
+                Sleep(2000);
+            }
+            continue;
+        }
+
+        char serverSessionId[128] = {0};
+        char* sessPtr = strstr(rxPlaintext, "\"sessionId\":\"");
+        if (sessPtr) {
+            sessPtr += 13;
+            char* sessEnd = strchr(sessPtr, '"');
+            if (sessEnd && (sessEnd - sessPtr) < 127) {
+                strncpy(serverSessionId, sessPtr, sessEnd - sessPtr);
+                serverSessionId[sessEnd - sessPtr] = '\0';
             }
         }
-        fclose(f);
 
-        char finalPlain[1024] = {0};
-        ReadHttpPlaintext(uploadSock, uploadTls, finalPlain, sizeof(finalPlain), useTls);
+        if (strlen(serverSessionId) == 0) {
+            _snprintf(statusMsg, sizeof(statusMsg), "%s sent invalid SessionId.", alias);
+            if (g_hWndMain) {
+                PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 3, (LPARAM)AllocateString(statusMsg));
+                Sleep(2000);
+            }
+            continue;
+        }
 
-        if (useTls) { TlsFreeSocket(uploadTls); uploadTls = NULL; }
-        closesocket(uploadSock);
+        FileTokenMap fileTokens[50];
+        memset(fileTokens, 0, sizeof(fileTokens));
+
+        char* filesBlock = strstr(rxPlaintext, "\"files\":{");
+        if (filesBlock) {
+            for (int i = 0; i < ctx->fileCount; i++) {
+                char searchStr[150];
+                sprintf(searchStr, "\"%s\":\"", ctx->files[i].fileId);
+                char* tokPtr = strstr(filesBlock, searchStr);
+                if (tokPtr) {
+                    tokPtr += strlen(searchStr);
+                    char* tokEnd = strchr(tokPtr, '"');
+                    if (tokEnd) {
+                        strncpy(fileTokens[i].fileId, ctx->files[i].fileId, 127);
+                        strncpy(fileTokens[i].token, tokPtr, tokEnd - tokPtr);
+                        fileTokens[i].token[tokEnd - tokPtr] = '\0';
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < ctx->fileCount; i++) {
+            char currentToken[128] = "";
+            for (int j = 0; j < ctx->fileCount; j++) {
+                if (strcmp(fileTokens[j].fileId, ctx->files[i].fileId) == 0) {
+                    strcpy(currentToken, fileTokens[j].token); break;
+                }
+            }
+
+            if (strlen(currentToken) == 0) continue;
+
+            if (g_hWndMain) {
+                _snprintf(statusMsg, sizeof(statusMsg), "[%d/%d] %s: Sending %s...", t + 1, ctx->targetCount, alias, ctx->files[i].fileName);
+                PostMessage(g_hWndMain, WM_SEND_STATUS_UPDATE, 1, (LPARAM)AllocateString(statusMsg));
+            }
+
+            FILE* f = fopen(ctx->files[i].filePath, "rb");
+            if (!f) continue;
+
+            SOCKET uploadSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            if (connect(uploadSock, (SOCKADDR*)&targetAddr, sizeof(targetAddr)) == SOCKET_ERROR) { fclose(f); continue; }
+
+            TlsSocket* uploadTls = NULL;
+            if (useTls) {
+                uploadTls = TlsConnect(uploadSock, targetIP);
+                if (!uploadTls) { closesocket(uploadSock); fclose(f); continue; }
+            }
+
+            char uploadHeader[1024];
+            sprintf(uploadHeader, "POST /api/localsend/v2/upload?sessionId=%s&fileId=%s&token=%s HTTP/1.1\r\n"
+                                  "Host: %s\r\n"
+                                  "Content-Type: application/octet-stream\r\n"
+                                  "Content-Length: %lld\r\n"
+                                  "Connection: close\r\n\r\n",
+                    serverSessionId, ctx->files[i].fileId, currentToken, targetIP, ctx->files[i].fileSize);
+
+            SendHttpPayload(uploadSock, uploadTls, uploadHeader, strlen(uploadHeader), useTls);
+
+            char readBuf[8192];
+            int bytesRead = 0;
+            long long totalSent = 0;
+
+            while ((bytesRead = (int)fread(readBuf, 1, sizeof(readBuf), f)) > 0) {
+                if (useTls) {
+                    if (TlsWrite(uploadTls, readBuf, bytesRead) <= 0) break;
+                } else {
+                    if (send(uploadSock, readBuf, bytesRead, 0) == SOCKET_ERROR) break;
+                }
+
+                totalSent += bytesRead;
+
+                if (g_hWndMain && ctx->files[i].fileSize > 0) {
+                    int pct = (int)((totalSent * 100) / ctx->files[i].fileSize);
+                    HWND hProg = GetDlgItem(g_hWndMain, IDC_SEND_PROGRESS);
+                    if (hProg) SendMessage(hProg, PBM_SETPOS, pct, 0);
+                }
+            }
+            fclose(f);
+
+            char finalPlain[1024] = {0};
+            ReadHttpPlaintext(uploadSock, uploadTls, finalPlain, sizeof(finalPlain), useTls);
+
+            if (useTls) { TlsFreeSocket(uploadTls); uploadTls = NULL; }
+            closesocket(uploadSock);
+        }
     }
 
     free(ctx);

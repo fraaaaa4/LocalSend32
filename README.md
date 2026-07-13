@@ -116,9 +116,9 @@ Help translating the app! All strings are defined in the source code in utils.c 
    ```
   - in `ui_creator.c` find the dropdown menu creation inside `CreatMainControls()`. Append the name of your language using `SendMessageA` with `CB_ADDSTRING`:
   ```c
-   SendMessageA(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"English");
-   SendMessageA(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"Italiano");
-   SendMessageA(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"Français"); // <--- Add this line
+   SendMessage(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"English");
+   SendMessage(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"Italiano");
+   SendMessage(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"Français"); // <--- Add this line
    ```
   The order in g_Languages should be the exact same that is in the dropdown menu of the languages!
 

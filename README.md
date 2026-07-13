@@ -14,14 +14,17 @@ It integrates the LocalSend v2 protocol using the Windows Secure Channel API for
 
 # Files structure
 - cert.c/cert.h : generates self-signed certificates using NCrypt APIs for TLS.
-- main.c : main GUI loop, settings parser, UI event dispatching
+- dialogs.c/dialogs.h: dialog window procedures, such as text input and manual IP input
+- main.c : main GUI loop, message dispatching, window resizing
 - manifest.rc/manifest.o : theme manifest
 - network_tcp.c/network_tcp.h : handles incoming TCP server requests, for receiving files, using TlsSocket abstraction
 - network_tx.c/network_tx.h : handless outbound TCP client connections, using TlsSocket astraction
 - network_udp.c/network_udp.h: handles UDP multicast discovery beacons
+- settings.c/settings.h : loading and saving settings from .ini file
 - tls_layer.h : abstract TLS socket API definition
 - tls_schannel.h : Windows Schannel/SSPI implementation (LocalSend RT)
 - tls_openssl.c : OpenSSL TLS implementation (LocalSend32)
+- ui_creator.c/ui_creator.h : creation and layout of Win32 GUI controls
 - utils.c/utils.h : helper utilities, such as JSON parser, file type mapping, path helpers
 
 # Networking stuff
@@ -78,8 +81,46 @@ First compile the manifest for the theme:
 
 Then compile the project iself:
 ```bash
-armv7-w64-mingw32-gcc -O2 -Wall main.c cert.c network_tcp.c network_tx.c network_udp.c tls_schannel.c utils.c manifest.o -o LocalSendRT.exe -lws2_32 -lcomctl32 -lshlwapi -lole32 -luuid -lcrypt32 -lncrypt -lsecur32 -liphlpapi -lgdi32 -lcomdlg32 -mwindows
+armv7-w64-mingw32-gcc -O2 -Wall \
+    main.c dialogs.c settings.c ui_creator.c cert.c \
+    network_tcp.c network_tx.c network_udp.c tls_schannel.c utils.c \
+    manifest.o \
+    -o LocalSendRT.exe \
+    -lws2_32 -lcomctl32 -lshlwapi -lole32 -luuid -lcrypt32 -lncrypt -lsecur32 -liphlpapi -lgdi32 -lcomdlg32 \
+    -mwindows
 ```
+
+# Translations
+Help translating the app! All strings are defined in the source code in utils.c inside the `g_Languages` array. To add a new language:
+- open `utils.h` and add a new language identifier in the `LanguageId` enum right before `LANG_COUNT`:
+   ```c
+   typedef enum {
+       LANG_EN = 0,
+       LANG_IT,
+       LANG_FR, // <- add a new language here
+       LANG_COUNT
+   } LanguageId;
+   ```
+- in the `g_Languages` array, append your translated block inside brackets. Of course, your structure should have all the strings of the other languages:
+  ```c
+   const LanguageStrings g_Languages[LANG_COUNT] = {
+       // English (LANG_EN)
+       { ... },
+       // Italian (LANG_IT)
+       { ... },
+       // French (LANG_FR)
+       {
+           // Add here all the translated strings which should be the same as the others and in the same order
+       }
+   };
+   ```
+  - in `ui_creator.c` find the dropdown menu creation inside `CreatMainControls()`. Append the name of your language using `SendMessageA` with `CB_ADDSTRING`:
+  ```c
+   SendMessageA(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"English");
+   SendMessageA(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"Italiano");
+   SendMessageA(hWndComboLanguage, CB_ADDSTRING, 0, (LPARAM)"Français"); // <--- Add this line
+   ```
+  The order in g_Languages should be the exact same that is in the dropdown menu of the languages!
 
 ## Notes
 - When opening the app for the first time, it creates an .ini file containing the preferences of the app. So, for cleanliness, I suggest you put the exe in Program Files, and then make the shortcut to it

@@ -25,6 +25,14 @@ void sendDiscoveryShout(SOCKET mySocket) {
     printf("Announcing device presence: %s (Hashtag: #%s)...\n", g_MyDeviceName, g_MyFingerprint);
 
     sendto(mySocket, jsonShout, (int)strlen(jsonShout), 0, (SOCKADDR *)&multicastAddress, sizeof(multicastAddress));
+
+    struct sockaddr_in broadcastAddr;
+    broadcastAddr.sin_family = AF_INET;
+    broadcastAddr.sin_port = htons(g_Port);
+    broadcastAddr.sin_addr.s_addr = inet_addr("255.255.255.255");
+
+    sendto(mySocket, jsonShout, (int)strlen(jsonShout), 0, (SOCKADDR *)&broadcastAddr, sizeof(broadcastAddr));
+
 }
 
 // Creates UDP socket
@@ -56,6 +64,35 @@ bool joinMulticastGroup(SOCKET mySocket) {
     multicastGroup.imr_multiaddr.s_addr = inet_addr(g_MulticastAddr);
     multicastGroup.imr_interface.s_addr = htonl(INADDR_ANY);
 
+    int result = setsockopt(mySocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&multicastGroup, sizeof(multicastGroup));
+
+    PIP_ADAPTER_ADDRESSES pAddresses = NULL;
+    ULONG outBufLen = 15000;
+
+    pAddresses = (IP_ADAPTER_ADDRESSES *)malloc(outBufLen);
+    if (pAddresses && GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, NULL, pAddresses, &outBufLen) == NO_ERROR) {
+        PIP_ADAPTER_ADDRESSES pCurrAddresses = pAddresses;
+        while (pCurrAddresses) {
+            if (pCurrAddresses->OperStatus == IfOperStatusUp) {
+                PIP_ADAPTER_UNICAST_ADDRESS pUnicast = pCurrAddresses->FirstUnicastAddress;
+                while (pUnicast) {
+                    struct sockaddr_in *sa_in = (struct sockaddr_in *)pUnicast->Address.lpSockaddr;
+                    if (sa_in->sin_family == AF_INET) {
+                        multicastGroup.imr_interface = sa_in->sin_addr;
+                        setsockopt(mySocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&multicastGroup, sizeof(multicastGroup));
+                    }
+                    pUnicast = pUnicast->Next;
+                }
+            }
+            pCurrAddresses = pCurrAddresses->Next;
+        }
+    }
+
+    if (pAddresses) free(pAddresses);
+
+    return (result != SOCKET_ERROR);
+
+    /*
     char hostname[256];
     if (gethostname(hostname, sizeof(hostname)) == 0) {
         struct hostent *host = gethostbyname(hostname);
@@ -78,6 +115,7 @@ bool joinMulticastGroup(SOCKET mySocket) {
         return false;
     }
     return true;
+    */
 }
 
 // UDP listener loop

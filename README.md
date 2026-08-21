@@ -124,4 +124,5 @@ Help translating the app! All strings are defined in the source code in utils.c 
 
 ## Notes
 - When opening the app for the first time, it creates an .ini file containing the preferences of the app. So, for cleanliness, I suggest you put the exe in Program Files, and then make the shortcut to it
-- if you get the error "The program can't start because api-ms-win-crt-private-l1-1-0.dll is missing", install the VC Redistributables for ARM32 
+- If you get the error "The program can't start because api-ms-win-crt-private-l1-1-0.dll is missing", install the VC Redistributables for ARM32 
+- The first time you download this app, it is **imperative** that you run it as Administrator at least once. This is because the RT firewall is much more strict than normal Windows, so LocalSend creates custom rules for connecting to other devices; without running as Administrator, the rules aren't created, and the app doesn't work

@@ -124,3 +124,4 @@ Help translating the app! All strings are defined in the source code in utils.c 
 
 ## Notes
 - When opening the app for the first time, it creates an .ini file containing the preferences of the app. So, for cleanliness, I suggest you put the exe in Program Files, and then make the shortcut to it
+- if you get the error "The program can't start because api-ms-win-crt-private-l1-1-0.dll is missing", install the VC Redistributables for ARM32 

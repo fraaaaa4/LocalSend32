@@ -145,6 +145,8 @@ OpenSSL for ARM32 can be found in DiscordMessenger's RT port: https://github.com
 |Windows Vista/7/8.x/10/11|x86-32|LocalSend9x or 32|OpenSSL 3.x. that supports Vista, MSVCRT|Yes|No|Behaviour should be similar to XP|
 |Windows RT 8.x/Windows RT 10|ARM32|LocalSendRT|OpenSSL for ARM32, MSVCRT for ARM32|Yes|Yes (RT 1)|<img width="455" height="256" alt="immagine_appunti" src="https://github.com/user-attachments/assets/29941edf-9f87-4738-95d6-4bff6fb6f5c0" />|
 |Windows 10/11 WoA|ARM64|LocalSendARM|OpenSSL for ARM64|Yes|No|-|
+|Wine|x86-32|LocalSend9x or 32|OpenSSL 3.x 32-bit Windows DLLs|Yes|Yes (Wine on Fedora 44, Whisky on macOS 27)|It may need Status: offline (error), but it's working fine; icons may not be right due to DLL differencies for icons. <img width="572" height="260" alt="image" src="https://github.com/user-attachments/assets/70eb0133-8783-4f61-8f3e-97891eba0c6d" />|
+
 
 ## Notes
 - When opening the app for the first time, it creates an .ini file containing the preferences of the app. So, for cleanliness, I suggest you put the exe in Program Files, and then make the shortcut to it

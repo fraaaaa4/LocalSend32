@@ -75,7 +75,7 @@ This part is contained in `network_tcp.c`. A persistent background thread binds 
 - in case of interruption, the partial file is deleted from the disk
 
 # Compiling
-The project is compiled using the `LLVM-MinGW` toolchain (UCRT) which support compiling to ARMv7 and x86 architectures. Compilation has been tested/made from a Linux host.
+The project is compiled using the `LLVM-MinGW` toolchain (UCRT) which support compiling to ARMv7 and x86 architectures. Compilation has been tested/made from a Linux host. The compilation commands here are for Version 2.0 onwards.
 
 |Project|Compiler|Manifest|Program|
 |-|-|-|-|
@@ -83,6 +83,13 @@ The project is compiled using the `LLVM-MinGW` toolchain (UCRT) which support co
 |LocalSend9x|i686-w64-mingw32-gcc|`i686-w64-mingw32-windres manifest_nt.rc -o manifest_nt.o`|`i686-w64-mingw32-gcc -mwindows -O2 -Wall -DLOCALSEND_NT main.c dialogs.c settings.c ui_creator.c layout.c openssl_dyn.c network_tcp.c network_tx.c network_udp.c tls_openssl.c utils.c tray_menu.c manifest_nt.o -o LocalSend9x.exe -Iinclude -lws2_32 -lcomctl32 -lole32 -luuid -lshell32 -lcomdlg32 -lgdi32 -Wl,--subsystem,windows:3.50,--major-os-version,3,--minor-os-version,50,--major-subsystem-version,3,--minor-subsystem-version,50`|
 |LocalSendRT|armv7-w64-mingw32-clang|`armv7-w64-mingw32-windres manifest_arm.rc -o manifest_arm.o`|`armv7-w64-mingw32-clang -mwindows -O2 -Wall -D__arm__ main.c dialogs.c settings.c ui_creator.c layout.c openssl_dyn.c network_tcp.c network_tx.c network_udp.c tls_openssl.c utils.c tray_menu.c manifest_arm.o -o LocalSendRT.exe -Iinclude -lws2_32 -lcomctl32 -lole32 -luuid -lshell32 -lcomdlg32 -lgdi32`|
 |LocalSendARM|aarch64-w64-mingw32-clang|`aarch64-w64-mingw32-windres manifest_arm64.rc -o manifest_arm64.o`|`aarch64-w64-mingw32-clang -mwindows -O2 -Wall main.c dialogs.c settings.c ui_creator.c layout.c openssl_dyn.c network_tcp.c network_tx.c network_udp.c tls_openssl.c utils.c tray_menu.c manifest_arm64.o -o LocalSend64_ARM.exe -Iinclude -lws2_32 -lcomctl32 -lole32 -luuid -lshell32 -lcomdlg32 -lgdi32`|
+
+Together with the program, from Version 2.0, there's also a chm file. The following commands are needed, listed for compiling on a Linux host:
+- Install python3-sphinx, python3-myst-parser, and fp-utils with your package manager
+- Open a Terminal and move to the `help` file of the project
+- `make htmlhelp`
+- `chmcmd build/htmlhelp/LocalSend32.hhp`
+- Copy the help file in the main folder of the project
 
 
 # Translations
@@ -129,7 +136,7 @@ When it says that TLS encryption may need to be disabled, it means that to ensur
 
 For versions of Windows that support both LocalSend9x and LocalSend32, we suggest the 32 version as it has a few additional graphical effects (such as groups in listboxes).
 
-The app supports both OpenSSL 3.x and 4.x when available. Note that all tests have been made with 3.x. Files must be named as **libssl-3.dll** and **libcrypto-3.dll** (or with "4" if it's 4.x).
+The app supports both OpenSSL 3.x and 4.x when available. Note that all tests have been made with 3.x. Files must be named as **libssl-3.dll** and **libcrypto-3.dll** (or with "4" if it's 4.x; I tested it only with 3.x though).
 
 OpenSSL for ARM32 can be found in DiscordMessenger's RT port: https://github.com/ricol03/dm-Arm32
 

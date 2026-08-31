@@ -1,0 +1,34 @@
+[OPTIONS]
+Binary TOC=No
+Binary Index=No
+Compiled file=LocalSend32.chm
+Contents file=LocalSend32.hhc
+Default Window=LocalSend32
+Default topic=index.html
+Display compile progress=No
+Full text search stop list file=LocalSend32.stp
+Full-text search=Yes
+Index file=LocalSend32.hhk
+Language=0x409
+Title=LocalSend32 2.0 documentation
+
+[WINDOWS]
+LocalSend32="LocalSend32 2.0 documentation","LocalSend32.hhc","LocalSend32.hhk","index.html","index.html",,,,,0x63520,220,0x10384e,[0,0,1024,768],,,,,,,0
+
+[FILES]
+first.html
+genindex.html
+index.html
+intro.html
+news.html
+problems.html
+receive.html
+send.html
+settings.html
+_static\alabaster.css
+_static\basic.css
+_static\custom.css
+_static\file.png
+_static\minus.png
+_static\plus.png
+_static\pygments.css

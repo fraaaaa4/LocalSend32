@@ -8,9 +8,9 @@
 extern char g_MyDeviceName[];
 extern char g_MyFingerprint[];
 
-// Broadcasts presence on the network
+// Broadcasts presence on the network (multicast and interface-specific broadcasts)
 void sendDiscoveryShout(SOCKET mySocket) {
-    struct sockaddr_in multicastAddress;
+    struct sockaddr_in multicastAddress = {0};
     multicastAddress.sin_family = AF_INET;
     multicastAddress.sin_port = htons(g_Port);
     multicastAddress.sin_addr.s_addr = inet_addr(g_MulticastAddr);
@@ -18,21 +18,44 @@ void sendDiscoveryShout(SOCKET mySocket) {
     char jsonShout[512];
 
     _snprintf(jsonShout, sizeof(jsonShout),
-        "{\"alias\":\"%s\",\"version\":\"2.1\",\"deviceModel\":\"%s\",\"deviceType\":\"%s\",\"fingerprint\":\"%s\",\"port\":%d,\"announce\":true}",
-        g_MyDeviceName, g_DeviceModel, g_DeviceType, g_MyFingerprint, g_Port
+        "{\"alias\":\"%s\",\"version\":\"2.1\",\"deviceModel\":\"%s\",\"deviceType\":\"%s\",\"fingerprint\":\"%s\",\"port\":%d,\"protocol\":\"%s\",\"announce\":true}",
+        g_MyDeviceName, g_DeviceModel, GetProtocolDeviceType(g_DeviceType), g_MyFingerprint, g_Port,
+        (g_EnableEncryption != 0) ? "https" : "http"
     );
 
     printf("Announcing device presence: %s (Hashtag: #%s)...\n", g_MyDeviceName, g_MyFingerprint);
 
     sendto(mySocket, jsonShout, (int)strlen(jsonShout), 0, (SOCKADDR *)&multicastAddress, sizeof(multicastAddress));
 
-    struct sockaddr_in broadcastAddr;
-    broadcastAddr.sin_family = AF_INET;
-    broadcastAddr.sin_port = htons(g_Port);
-    broadcastAddr.sin_addr.s_addr = inet_addr("255.255.255.255");
+    // Universal subnet broadcast shout
+    struct sockaddr_in bcastGeneral = {0};
+    bcastGeneral.sin_family = AF_INET;
+    bcastGeneral.sin_port = htons(g_Port);
+    bcastGeneral.sin_addr.s_addr = inet_addr("255.255.255.255");
+    sendto(mySocket, jsonShout, (int)strlen(jsonShout), 0, (SOCKADDR *)&bcastGeneral, sizeof(bcastGeneral));
 
-    sendto(mySocket, jsonShout, (int)strlen(jsonShout), 0, (SOCKADDR *)&broadcastAddr, sizeof(broadcastAddr));
+    // In broadcast for every network interface if supported
+    INTERFACE_INFO InterfaceList[20];
+    unsigned long nBytesReturned;
+    if (WSAIoctl(mySocket, SIO_GET_INTERFACE_LIST, NULL, 0, &InterfaceList,
+                 sizeof(InterfaceList), &nBytesReturned, NULL, NULL) != SOCKET_ERROR) {
+        int nNumInterfaces = nBytesReturned / sizeof(INTERFACE_INFO);
+        for (int i = 0; i < nNumInterfaces; ++i) {
+            u_long flags = InterfaceList[i].iiFlags;
+            if ((flags & IFF_UP) && !(flags & IFF_LOOPBACK)) {
+                struct sockaddr_in bcastAddr = {0};
+                bcastAddr.sin_family = AF_INET;
+                bcastAddr.sin_port = htons(g_Port);
+                
+                u_long ip = InterfaceList[i].iiAddress.AddressIn.sin_addr.s_addr;
+                u_long mask = InterfaceList[i].iiNetmask.AddressIn.sin_addr.s_addr;
+                // Calculate subnet broadcast address using subnet mask inversion (e.g. IP | ~Mask)
+                bcastAddr.sin_addr.s_addr = ip | ~mask;
 
+                sendto(mySocket, jsonShout, (int)strlen(jsonShout), 0, (SOCKADDR *)&bcastAddr, sizeof(bcastAddr));
+            }
+        }
+    }
 }
 
 // Creates UDP socket
@@ -43,10 +66,12 @@ SOCKET createUdpSocket(){
         return INVALID_SOCKET;
     }
 
+    int reuse = 1;
+    setsockopt(mySocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
     int broadcastEnable = 1;
     setsockopt(mySocket, SOL_SOCKET, SO_BROADCAST, (char*)&broadcastEnable, sizeof(broadcastEnable));
 
-    struct sockaddr_in listeningAddress;
+    struct sockaddr_in listeningAddress = {0};
     listeningAddress.sin_family = AF_INET;
     listeningAddress.sin_port = htons(g_Port);
     listeningAddress.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -58,84 +83,66 @@ SOCKET createUdpSocket(){
     return mySocket;
 }
 
-// Joins multicast group
+// Joins multicast group on all active interfaces
 bool joinMulticastGroup(SOCKET mySocket) {
-    struct ip_mreq multicastGroup;
-    multicastGroup.imr_multiaddr.s_addr = inet_addr(g_MulticastAddr);
-    multicastGroup.imr_interface.s_addr = htonl(INADDR_ANY);
+    INTERFACE_INFO InterfaceList[20];
+    unsigned long nBytesReturned;
+    bool joinedAny = false;
 
-    int result = setsockopt(mySocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&multicastGroup, sizeof(multicastGroup));
-
-    PIP_ADAPTER_ADDRESSES pAddresses = NULL;
-    ULONG outBufLen = 15000;
-
-    pAddresses = (IP_ADAPTER_ADDRESSES *)malloc(outBufLen);
-    if (pAddresses && GetAdaptersAddresses(AF_INET, GAA_FLAG_INCLUDE_PREFIX, NULL, pAddresses, &outBufLen) == NO_ERROR) {
-        PIP_ADAPTER_ADDRESSES pCurrAddresses = pAddresses;
-        while (pCurrAddresses) {
-            if (pCurrAddresses->OperStatus == IfOperStatusUp) {
-                PIP_ADAPTER_UNICAST_ADDRESS pUnicast = pCurrAddresses->FirstUnicastAddress;
-                while (pUnicast) {
-                    struct sockaddr_in *sa_in = (struct sockaddr_in *)pUnicast->Address.lpSockaddr;
-                    if (sa_in->sin_family == AF_INET) {
-                        multicastGroup.imr_interface = sa_in->sin_addr;
-                        setsockopt(mySocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&multicastGroup, sizeof(multicastGroup));
-                    }
-                    pUnicast = pUnicast->Next;
-                }
-            }
-            pCurrAddresses = pCurrAddresses->Next;
-        }
-    }
-
-    if (pAddresses) free(pAddresses);
-
-    return (result != SOCKET_ERROR);
-
-    /*
-    char hostname[256];
-    if (gethostname(hostname, sizeof(hostname)) == 0) {
-        struct hostent *host = gethostbyname(hostname);
-        if (host != NULL) {
-            for (int i = 0; host->h_addr_list[i] != NULL; i++) {
-                struct in_addr *addr = (struct in_addr *)host->h_addr_list[i];
-                char *ipStr = inet_ntoa(*addr);
-                if (strcmp(ipStr, "127.0.0.1") != 0) {
-                    multicastGroup.imr_interface = *addr;
-                    printf("Interface IP: %s\n", ipStr);
-                    break;
+    if (WSAIoctl(mySocket, SIO_GET_INTERFACE_LIST, NULL, 0, &InterfaceList,
+                 sizeof(InterfaceList), &nBytesReturned, NULL, NULL) != SOCKET_ERROR) {
+        int nNumInterfaces = nBytesReturned / sizeof(INTERFACE_INFO);
+        for (int i = 0; i < nNumInterfaces; ++i) {
+            u_long flags = InterfaceList[i].iiFlags;
+            if ((flags & IFF_UP) && !(flags & IFF_LOOPBACK)) {
+                struct ip_mreq multicastGroup = {0};
+                multicastGroup.imr_multiaddr.s_addr = inet_addr(g_MulticastAddr);
+                multicastGroup.imr_interface = InterfaceList[i].iiAddress.AddressIn.sin_addr;
+                
+                int result = setsockopt(mySocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&multicastGroup, sizeof(multicastGroup));
+                if (result != SOCKET_ERROR) {
+                    char *ipStr = inet_ntoa(InterfaceList[i].iiAddress.AddressIn.sin_addr);
+                    printf("Joined multicast group on interface: %s\n", ipStr);
+                    joinedAny = true;
                 }
             }
         }
     }
 
-    int result = setsockopt(mySocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&multicastGroup, sizeof(multicastGroup));
-    if (result == SOCKET_ERROR) {
-        printf("Error joining Multicast group: %d\n", WSAGetLastError());
-        return false;
+    if (!joinedAny) {
+        struct ip_mreq multicastGroup = {0};
+        multicastGroup.imr_multiaddr.s_addr = inet_addr(g_MulticastAddr);
+        multicastGroup.imr_interface.s_addr = htonl(INADDR_ANY);
+        int result = setsockopt(mySocket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *)&multicastGroup, sizeof(multicastGroup));
+        if (result != SOCKET_ERROR) {
+            printf("Joined multicast group on default interface (INADDR_ANY)\n");
+            joinedAny = true;
+        }
     }
-    return true;
-    */
+
+    return joinedAny;
 }
 
-// UDP listener loop
-void startListeningLoop(SOCKET mySocket) {
+DWORD WINAPI startListeningLoop(LPVOID lpParam) {
+    SOCKET mySocket = (SOCKET)(uintptr_t)lpParam;
     char buffer[1024];
-    struct sockaddr_in sendingAddress;
-    int sendingSize = sizeof(sendingAddress);
+    struct sockaddr_in sendingAddress = {0};
     RemoteDevice discoveredDevice;
 
     printf("\n==================================================\n");
 #ifdef __arm__
-    printf("  LocalSend RT Core\n");
+    printf("  LocalSend RT\n");
 #else
-    printf("  LocalSend32 Core\n");
+    printf("  LocalSend32\n");
 #endif
     printf("==================================================\n\n");
+    fflush(stdout);
 
     sendDiscoveryShout(mySocket);
+    fflush(stdout);
 
     while (1) {
+        int sendingSize = sizeof(sendingAddress);
         int byteReceived = recvfrom(mySocket, buffer, sizeof(buffer) - 1, 0, (SOCKADDR *)&sendingAddress, &sendingSize);
         if (byteReceived <= 0) continue;
 
@@ -146,6 +153,7 @@ void startListeningLoop(SOCKET mySocket) {
             if (strcmp(discoveredDevice.fingerprint, g_MyFingerprint) == 0) {
                 continue;
             }
+            printf("[UDP Debug] Loopback check failed. Mine: '%s', Discovered: '%s'\n", g_MyFingerprint, discoveredDevice.fingerprint);
 
             _snprintf(discoveredDevice.ipAddress, sizeof(discoveredDevice.ipAddress), "%s", inet_ntoa(sendingAddress.sin_addr));
 
@@ -165,8 +173,9 @@ void startListeningLoop(SOCKET mySocket) {
 
                 char jsonAnswer[512];
                 _snprintf(jsonAnswer, sizeof(jsonAnswer),
-                    "{\"alias\":\"%s\",\"version\":\"2.1\",\"deviceModel\":\"%s\",\"deviceType\":\"%s\",\"fingerprint\":\"%s\",\"port\":%d,\"announce\":false}",
-                    g_MyDeviceName, g_DeviceModel, g_DeviceType, g_MyFingerprint, g_Port
+                    "{\"alias\":\"%s\",\"version\":\"2.1\",\"deviceModel\":\"%s\",\"deviceType\":\"%s\",\"fingerprint\":\"%s\",\"port\":%d,\"protocol\":\"%s\",\"announce\":false}",
+                    g_MyDeviceName, g_DeviceModel, GetProtocolDeviceType(g_DeviceType), g_MyFingerprint, g_Port,
+                    (g_EnableEncryption != 0) ? "https" : "http"
                 );
 
                 sendingAddress.sin_port = htons(discoveredDevice.port);
@@ -175,4 +184,5 @@ void startListeningLoop(SOCKET mySocket) {
             printf("--------------------------------------------------\n");
         }
     }
+    return 0;
 }

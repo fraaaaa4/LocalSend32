@@ -1,0 +1,124 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<HTML>
+<HEAD>
+<meta name="GENERATOR" content="Microsoft&reg; HTML Help Workshop 4.1">
+<!-- Sitemap 1.0 -->
+</HEAD><BODY>
+<OBJECT type="text/site properties">
+        <param name="Window Styles" value="0x801227">
+        <param name="ImageType" value="Folder">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="LocalSend32 2.0 documentation">
+    <param name="Local" value="index.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Introduction">
+    <param name="Local" value="intro.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="First time running LocalSend32">
+    <param name="Local" value="first.html">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Windows RT">
+    <param name="Local" value="first.html#windows-rt">
+</OBJECT>
+</UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Receiving files">
+    <param name="Local" value="receive.html">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Settings for receiving">
+    <param name="Local" value="receive.html#settings-for-receiving">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="PIN">
+    <param name="Local" value="receive.html#pin">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="During receiving">
+    <param name="Local" value="receive.html#during-receiving">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="After receiving">
+    <param name="Local" value="receive.html#after-receiving">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Problems">
+    <param name="Local" value="receive.html#problems">
+</OBJECT>
+</UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Sending files">
+    <param name="Local" value="send.html">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Sending to devices">
+    <param name="Local" value="send.html#sending-to-devices">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="PIN">
+    <param name="Local" value="send.html#pin">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Tray menu">
+    <param name="Local" value="send.html#tray-menu">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Problems">
+    <param name="Local" value="send.html#problems">
+</OBJECT>
+</UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Settings">
+    <param name="Local" value="settings.html">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="General">
+    <param name="Local" value="settings.html#general">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Network">
+    <param name="Local" value="settings.html#network">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Other">
+    <param name="Local" value="settings.html#other">
+</OBJECT>
+</UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Problems">
+    <param name="Local" value="problems.html">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="The app can’t find the OpenSSL DLLs">
+    <param name="Local" value="problems.html#the-app-can-t-find-the-openssl-dlls">
+</OBJECT>
+</UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Notes about this version">
+    <param name="Local" value="news.html">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Previous versions">
+    <param name="Local" value="news.html#previous-versions">
+</OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Version 1.1">
+    <param name="Local" value="news.html#version-1-1">
+</OBJECT>
+<LI> <OBJECT type="text/sitemap">
+    <param name="Name" value="Version 1.0">
+    <param name="Local" value="news.html#version-1-0">
+</OBJECT>
+</UL>
+</UL></BODY></HTML>

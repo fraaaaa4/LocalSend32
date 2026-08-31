@@ -10,6 +10,6 @@
 
 SOCKET createUdpSocket();
 bool joinMulticastGroup(SOCKET mySocket);
-void startListeningLoop(SOCKET mySocket);
+DWORD WINAPI startListeningLoop(LPVOID lpParam);
 
 #endif

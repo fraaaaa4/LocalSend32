@@ -4,7 +4,7 @@
 #include <winsock2.h>
 #include <windows.h>
 
-// Entry point for the main TCP server thread that listens for incoming file transfers.
+extern int g_TcpServerStatus;
 DWORD WINAPI tcpServerThread(LPVOID lpParam);
 
 #endif

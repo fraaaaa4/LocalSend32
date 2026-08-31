@@ -1,69 +1,13 @@
 #include "cert.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <ncrypt.h>
-
-#ifndef NCRYPT_VOLATILE_KEY_FLAG
-#define NCRYPT_VOLATILE_KEY_FLAG 0x00000001
-#endif
-
-#ifndef PROV_RSA_AES
-#define PROV_RSA_AES 24
-#endif
-
-#define SECURITY_WIN32
-#include <security.h>
-#include <sspi.h>
-#include <schnlsp.h>
 #include <wincrypt.h>
-#include <ncrypt.h>
 
-#pragma comment(lib, "secur32.lib")
 #pragma comment(lib, "crypt32.lib")
 
-#ifndef MS_SOFTWARE_KEY_STORAGE_PROVIDER
-#define MS_SOFTWARE_KEY_STORAGE_PROVIDER L"Microsoft Software Key Storage Provider"
-#endif
-
-#ifndef NCRYPT_ECDSA_P256_ALGORITHM
-#define NCRYPT_ECDSA_P256_ALGORITHM L"ECDSA_P256"
-#endif
-
-// Generates a temporary self-signed certificate using Windows CNG
+// Generates a temporary self-signed certificate with Client and Server Authentication EKUs
 PCCERT_CONTEXT CreateSelfSignedCertificate() {
-    NCRYPT_PROV_HANDLE hProvider = 0;
-    NCRYPT_KEY_HANDLE hKey = 0;
     PCCERT_CONTEXT pCertContext = NULL;
-    SECURITY_STATUS status;
-
-    status = NCryptOpenStorageProvider(&hProvider, MS_SOFTWARE_KEY_STORAGE_PROVIDER, 0);
-    if (status != ERROR_SUCCESS) {
-        printf("[CNG] Provider error: 0x%08lX\n", (long)status);
-        return NULL;
-    }
-
-    // Generate ECC key pair
-    status = NCryptCreatePersistedKey(
-        hProvider,
-        &hKey,
-        NCRYPT_ECDSA_P256_ALGORITHM,
-        L"LocalSendSurfaceRT_ECC",
-        0,
-        NCRYPT_OVERWRITE_KEY_FLAG | NCRYPT_SILENT_FLAG
-    );
-
-    if (status != ERROR_SUCCESS) {
-        printf("[CNG] ECC key error: 0x%08lX\n", (long)status);
-        NCryptFreeObject(hProvider);
-        return NULL;
-    }
-
-    status = NCryptFinalizeKey(hKey, 0);
-    if (status != ERROR_SUCCESS) {
-        NCryptFreeObject(hKey);
-        NCryptFreeObject(hProvider);
-        return NULL;
-    }
 
     // Prepare certificate subject name
     CERT_NAME_BLOB nameBlob;
@@ -72,36 +16,71 @@ PCCERT_CONTEXT CreateSelfSignedCertificate() {
 
     if (CertStrToNameA(X509_ASN_ENCODING, certName, CERT_X500_NAME_STR, NULL, NULL, &nameBlob.cbData, NULL)) {
         nameBlob.pbData = (BYTE*)malloc(nameBlob.cbData);
-        CertStrToNameA(X509_ASN_ENCODING, certName, CERT_X500_NAME_STR, NULL, nameBlob.pbData, &nameBlob.cbData, NULL);
+        if (nameBlob.pbData) {
+            CertStrToNameA(X509_ASN_ENCODING, certName, CERT_X500_NAME_STR, NULL, nameBlob.pbData, &nameBlob.cbData, NULL);
+        }
     }
 
-    CRYPT_ALGORITHM_IDENTIFIER sigAlg;
-    memset(&sigAlg, 0, sizeof(sigAlg));
-    sigAlg.pszObjId = szOID_ECDSA_SHA256;
+    // Set up Extended Key Usage for both Server and Client authentication
+    LPSTR ekus[] = {
+        (LPSTR)szOID_PKIX_KP_SERVER_AUTH,
+        (LPSTR)szOID_PKIX_KP_CLIENT_AUTH
+    };
+    CERT_ENHKEY_USAGE enhKeyUsage;
+    enhKeyUsage.cUsageIdentifier = 2;
+    enhKeyUsage.rgpszUsageIdentifier = ekus;
 
-    SYSTEMTIME startTime, endTime;
-    GetSystemTime(&startTime);
-    GetSystemTime(&endTime);
-    endTime.wYear += 1;
+    CERT_EXTENSION ext;
+    memset(&ext, 0, sizeof(ext));
+    ext.pszObjId = (LPSTR)szOID_ENHANCED_KEY_USAGE;
+    ext.fCritical = FALSE;
+    ext.Value.cbData = 0;
+    ext.Value.pbData = NULL;
 
+    // Encode EKU structure to ASN.1
+    if (CryptEncodeObject(X509_ASN_ENCODING, szOID_ENHANCED_KEY_USAGE, &enhKeyUsage, NULL, &ext.Value.cbData)) {
+        ext.Value.pbData = (BYTE*)malloc(ext.Value.cbData);
+        if (ext.Value.pbData) {
+            CryptEncodeObject(X509_ASN_ENCODING, szOID_ENHANCED_KEY_USAGE, &enhKeyUsage, ext.Value.pbData, &ext.Value.cbData);
+        }
+    }
+
+    CERT_EXTENSIONS exts;
+    exts.cExtension = 1;
+    exts.rgExtension = &ext;
+
+    // Try machine keyset first so LSASS can access private keys during SSL handshake when running as Admin.
     pCertContext = CertCreateSelfSignCertificate(
-        (HCRYPTPROV_OR_NCRYPT_KEY_HANDLE)hKey,
-        &nameBlob,
         0,
+        &nameBlob,
+        CRYPT_MACHINE_KEYSET,
         NULL,
-        &sigAlg,
-        &startTime,
-        &endTime,
-        NULL
+        NULL,
+        NULL,
+        NULL,
+        &exts
     );
+    if (!pCertContext) {
+        // Fall back to user keyset if we lack admin privileges for machine keyset.
+        pCertContext = CertCreateSelfSignCertificate(
+            0,
+            &nameBlob,
+            0,
+            NULL,
+            NULL,
+            NULL,
+            NULL,
+            &exts
+        );
+    }
 
     if (!pCertContext) {
-        printf("[CryptoAPI] CertCreateSelfSignCertificate failed: 0x%08lX\n", (long)GetLastError());
+        printf("[Crypto] Automatic CertCreateSelfSignCertificate failed: 0x%08lX\n", (long)GetLastError());
+    } else {
+        printf("[Crypto] Successfully generated self-signed certificate with Client/Server EKU.\n");
     }
 
-    // Clean up CNG handles and memory
-    if (hKey) NCryptFreeObject(hKey);
-    if (hProvider) NCryptFreeObject(hProvider);
+    if (ext.Value.pbData) free(ext.Value.pbData);
     if (nameBlob.pbData) free(nameBlob.pbData);
 
     return pCertContext;

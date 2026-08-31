@@ -1,17 +1,10 @@
 #include <windows.h>
 
-// ============================================================================
-// APPLICATION ICON
-// ============================================================================
-// The first icon in the resource file determines the application's executable icon in Windows Explorer.
 101 ICON "LocalSend.ico"
 
-// ============================================================================
-// VERSION METADATA (Change these values to modify your app's metadata)
-// ============================================================================
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,1,0,0
-PRODUCTVERSION  1,1,0,0
+FILEVERSION     2,0,0,0
+PRODUCTVERSION  2,0,0,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 FILEFLAGS       0
 FILEOS          VOS_NT_WINDOWS32
@@ -24,11 +17,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "Fratta"
             VALUE "FileDescription",  "LocalSend client built with C/Win32 APIs"
-            VALUE "FileVersion",      "1.1.0.0"
-            VALUE "InternalName",     "LocalSend"
-            VALUE "OriginalFilename", "LocalSend.exe"
-            VALUE "ProductName",      "LocalSend32 / LocalSend RT"
-            VALUE "ProductVersion",   "1.1.0.0"
+            VALUE "FileVersion",      "2.0.0.0"
+            VALUE "InternalName",     "LocalSend32"
+            VALUE "OriginalFilename", "LocalSend32.exe"
+            VALUE "ProductName",      "LocalSend32"
+            VALUE "ProductVersion",   "2.0.0.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -37,19 +30,4 @@ BEGIN
     END
 END
 
-// ============================================================================
-// APPLICATION MANIFEST (For enabling visual styles / v6 common controls)
-// ============================================================================
-1 24 MOVEABLE PURE
-BEGIN
-    "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?>\r\n"
-    "<assembly xmlns=""urn:schemas-microsoft-com:asm.v1"" manifestVersion=""1.0"">\r\n"
-    "  <assemblyIdentity version=""1.1.0.0"" processorArchitecture=""*"" name=""LocalSendRT"" type=""win32"" />\r\n"
-    "  <description>LocalSend Native Client for Windows RT</description>\r\n"
-    "  <dependency>\r\n"
-    "    <dependentAssembly>\r\n"
-    "      <assemblyIdentity type=""win32"" name=""Microsoft.Windows.Common-Controls"" version=""6.0.0.0"" processorArchitecture=""*"" publicKeyToken=""6595b64144ccf1df"" language=""*"" />\r\n"
-    "    </dependentAssembly>\r\n"
-    "  </dependency>\r\n"
-    "</assembly>\r\n"
-END
+1 24 "LocalSend.manifest"

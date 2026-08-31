@@ -1,0 +1,32 @@
+#include <windows.h>
+
+1 ICON "LocalSend_classic.ico"
+101 ICON "LocalSend_classic.ico"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     2,0,0,0
+PRODUCTVERSION  2,0,0,0
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0" // US English, Unicode charset
+        BEGIN
+            VALUE "CompanyName",      "Fratta"
+            VALUE "FileDescription",  "LocalSend9x client for Windows 95/98/NT"
+            VALUE "FileVersion",      "2.0.0.0"
+            VALUE "InternalName",     "LocalSend9x"
+            VALUE "OriginalFilename", "LocalSend9x.exe"
+            VALUE "ProductName",      "LocalSend9x"
+            VALUE "ProductVersion",   "2.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

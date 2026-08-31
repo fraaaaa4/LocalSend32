@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "utils.h"
 #include "settings.h"
+#include "tls_layer.h"
 
 // External HWNDs defined in main.c
 extern HWND g_hWndMain;
@@ -26,9 +27,10 @@ extern HWND hWndRecvBtnBrowse;
 extern HWND hWndComboLanguage;
 
 
-// Determines the path to the config file (.ini) based on module filename
+// Determines the path to the config file based on module filename
 void InitSettingsPath() {
     GetModuleFileNameA(NULL, g_IniPath, MAX_PATH);
+    // Strip the executable filename to get the folder path
     char* p = strrchr(g_IniPath, '\\'); if (p) *p = '\0';
 #ifdef __arm__
     strcat(g_IniPath, "\\localsend_rt.ini");
@@ -40,24 +42,33 @@ void InitSettingsPath() {
 // Loads saved preferences from the ini file and populates variables/controls
 void LoadSettings() {
     InitSettingsPath();
+
+    // General receive preferences: SaveMode (0=app path, 1=downloads, 2=custom), QuickSave flag, and custom target path
     g_SaveMode = GetPrivateProfileIntA("Settings", "SaveMode", 1, g_IniPath);
     g_QuickSave = GetPrivateProfileIntA("Settings", "QuickSave", 0, g_IniPath);
     GetPrivateProfileStringA("Settings", "CustomPath", "", g_CustomPath, MAX_PATH, g_IniPath);
 
+    // Window behavior flags: Always on Top, Minimize to Tray on Close, Remember Window Position, and Recursive Folder
     int topmost = GetPrivateProfileIntA("Settings", "TopMost", 0, g_IniPath);
     int minClose = GetPrivateProfileIntA("Settings", "MinClose", 0, g_IniPath);
     int savePos = GetPrivateProfileIntA("Settings", "SavePos", 0, g_IniPath);
+    g_RecursiveFolder = GetPrivateProfileIntA("Settings", "RecursiveFolder", 0, g_IniPath);
 
     SendMessage(hWndCheckTopmost, BM_SETCHECK, topmost ? BST_CHECKED : BST_UNCHECKED, 0);
     SendMessage(hWndCheckMinClose, BM_SETCHECK, minClose ? BST_CHECKED : BST_UNCHECKED, 0);
     SendMessage(hWndCheckSavePos, BM_SETCHECK, savePos ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessage(hWndCheckRecursiveFolder, BM_SETCHECK, g_RecursiveFolder ? BST_CHECKED : BST_UNCHECKED, 0);
     SendMessage(hWndCheckQuickSave, BM_SETCHECK, g_QuickSave ? BST_CHECKED : BST_UNCHECKED, 0);
 
+    // Security & Network: PIN requirement, discovery timeout, and UDP multicast address
     g_RequirePin = GetPrivateProfileIntA("Settings", "RequirePin", 0, g_IniPath);
     GetPrivateProfileStringA("Settings", "PinCode", "1234", g_PinCode, sizeof(g_PinCode), g_IniPath);
     g_DiscoveryTimeout = GetPrivateProfileIntA("Settings", "DiscoveryTimeout", 5, g_IniPath);
     GetPrivateProfileStringA("Settings", "MulticastAddr", "224.0.0.167", g_MulticastAddr, sizeof(g_MulticastAddr), g_IniPath);
     g_EnableEncryption = GetPrivateProfileIntA("Settings", "EnableEncryption", 1, g_IniPath);
+    if (!TlsIsAvailable()) {
+        g_EnableEncryption = 0;
+    }
     GetPrivateProfileStringA("Settings", "DeviceType", "Laptop", g_DeviceType, sizeof(g_DeviceType), g_IniPath);
 #ifdef __arm__
     GetPrivateProfileStringA("Settings", "DeviceModel", "Surface RT", g_DeviceModel, sizeof(g_DeviceModel), g_IniPath);
@@ -71,11 +82,6 @@ void LoadSettings() {
     if (!GetComputerNameA(defaultName, &dwSize)) strcpy(defaultName, "Unknown-Device");
     GetPrivateProfileStringA("Settings", "DeviceName", defaultName, g_MyDeviceName, MAX_COMPUTERNAME_LENGTH + 1, g_IniPath);
 
-    int fj = 0;
-    for (int i = 0; g_MyDeviceName[i] && fj < 63; i++) {
-        if (g_MyDeviceName[i] != ' ') g_MyFingerprint[fj++] = tolower(g_MyDeviceName[i]);
-    }
-    g_MyFingerprint[fj] = '\0';
     if (hWndDeviceName) {
         SetWindowTextA(hWndDeviceName, g_MyDeviceName);
     }
@@ -89,11 +95,11 @@ void LoadSettings() {
     SendMessage(hWndCheckEncryption, BM_SETCHECK, g_EnableEncryption ? BST_CHECKED : BST_UNCHECKED, 0);
 
     SendMessage(hWndComboDevType, CB_RESETCONTENT, 0, 0);
-    SendMessage(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)"Phone");
-    SendMessage(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)"Laptop");
-    SendMessage(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)"Web");
-    SendMessage(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)"Terminal");
-    SendMessage(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)"Server");
+    SendMessageA(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)g_Lang.devTypePhone);
+    SendMessageA(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)g_Lang.devTypeLaptop);
+    SendMessageA(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)g_Lang.devTypeWeb);
+    SendMessageA(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)g_Lang.devTypeTerminal);
+    SendMessageA(hWndComboDevType, CB_ADDSTRING, 0, (LPARAM)g_Lang.devTypeServer);
     int selIdx = 0;
     if (_stricmp(g_DeviceType, "Laptop") == 0) selIdx = 1;
     else if (_stricmp(g_DeviceType, "Web") == 0) selIdx = 2;
@@ -138,6 +144,7 @@ void SaveSettings() {
     if (!g_IniPath[0]) InitSettingsPath();
     char buf[32];
 
+    // Read current checkbox and text states from the dialog controls
     if (hWndCheckQuickSave != NULL) {
         g_QuickSave = (SendMessage(hWndCheckQuickSave, BM_GETCHECK, 0, 0) == BST_CHECKED);
     }
@@ -176,15 +183,9 @@ void SaveSettings() {
         GetWindowTextA(hWndEditDevModel, g_DeviceModel, sizeof(g_DeviceModel));
     }
     if (hWndEditPort != NULL) {
+        char tmp[16];
         GetWindowTextA(hWndEditPort, tmp, sizeof(tmp)); g_Port = atoi(tmp);
     }
-
-    int fj = 0;
-    for (int i = 0; g_MyDeviceName[i] && fj < 63; i++) {
-        if (g_MyDeviceName[i] != ' ') g_MyFingerprint[fj++] = tolower(g_MyDeviceName[i]);
-    }
-    g_MyFingerprint[fj] = '\0';
-
     WritePrivateProfileStringA("Settings", "DeviceName", g_MyDeviceName, g_IniPath);
     sprintf(buf, "%d", g_RequirePin); WritePrivateProfileStringA("Settings", "RequirePin", buf, g_IniPath);
     WritePrivateProfileStringA("Settings", "PinCode", g_PinCode, g_IniPath);
@@ -201,12 +202,14 @@ void SaveSettings() {
     if (hWndCheckTopmost != NULL) topmost = (SendMessage(hWndCheckTopmost, BM_GETCHECK, 0, 0) == BST_CHECKED);
     if (hWndCheckMinClose != NULL) minClose = (SendMessage(hWndCheckMinClose, BM_GETCHECK, 0, 0) == BST_CHECKED);
     if (hWndCheckSavePos != NULL) savePos = (SendMessage(hWndCheckSavePos, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    if (hWndCheckRecursiveFolder != NULL) g_RecursiveFolder = (SendMessage(hWndCheckRecursiveFolder, BM_GETCHECK, 0, 0) == BST_CHECKED);
 
     if (hWndComboLanguage != NULL) g_Language = (int)SendMessage(hWndComboLanguage, CB_GETCURSEL, 0, 0);
     sprintf(buf, "%d", g_Language); WritePrivateProfileStringA("Settings", "Language", buf, g_IniPath);
     sprintf(buf, "%d", topmost); WritePrivateProfileStringA("Settings", "TopMost", buf, g_IniPath);
     sprintf(buf, "%d", minClose); WritePrivateProfileStringA("Settings", "MinClose", buf, g_IniPath);
     sprintf(buf, "%d", savePos); WritePrivateProfileStringA("Settings", "SavePos", buf, g_IniPath);
+    sprintf(buf, "%d", g_RecursiveFolder); WritePrivateProfileStringA("Settings", "RecursiveFolder", buf, g_IniPath);
 
     if (savePos) {
         RECT rc; GetWindowRect(g_hWndMain, &rc);

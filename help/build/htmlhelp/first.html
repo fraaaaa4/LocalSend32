@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="cp1252" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>First time running LocalSend32</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="next" title="Receiving files" href="receive.html" />
+    <link rel="prev" title="Introduction" href="intro.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="first-time-running-localsend32">
+<h1>First time running LocalSend32</h1>
+<p>Depending on the version of Windows you&rsquo;re running, you&rsquo;ll need to do different procedures. Don&rsquo;t worry, as LocalSend32 will check if everything is working correctly when it starts, and prompting you with the corresponding error.</p>
+<section id="windows-rt">
+<h2>Windows RT</h2>
+<p>If you&rsquo;re running LocalSendRT on Windows RT, you&rsquo;ll need to do the following things:</p>
+<ul class="simple">
+<li><p>Install VC redistributables for ARM32: https://files.open-rt.party/Software/Redistributables/VCRedist/</p></li>
+<li><p>If this is the first time you&rsquo;re running it, run it as Administrator, so the app can add the custom UDP and TCP rules to the firewall. This is because RT has a much stricter firewall and security settings. These rules let LocalSend32 send and receive network requests</p></li>
+<li><p>the OpenSSL ARM32 files must be in the same folder as the executable, named as <em>libcrypto-3-arm.dll</em> and <em>libssl-3-arm.dll</em>. These <strong>must</strong> be the ARM32 version, which are available to download on the LocalSendRT GitHub page (copies compiled directly from DiscordMessenger&rsquo;s ARM32 port)</p></li>
+</ul>
+</section>
+</section>
+
+
+          </div>
+          
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Fratta.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

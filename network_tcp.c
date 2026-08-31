@@ -11,9 +11,86 @@
 #include <ws2tcpip.h>
 #include <commctrl.h>
 #include <shlobj.h>
+#include <process.h>
 
-#define TCP_PORT 53317
-#define MAX_QUEUE_FILES 20
+#include <ctype.h>
+
+// Case-insensitive substring search helper
+const char* stristr(const char* str1, const char* str2) {
+    if (!str1 || !str2) return NULL;
+    while (*str1) {
+        const char* h = str1;
+        const char* n = str2;
+        while (*h && *n && (tolower((unsigned char)*h) == tolower((unsigned char)*n))) {
+            h++;
+            n++;
+        }
+        if (!*n) return str1;
+        str1++;
+    }
+    return NULL;
+}
+
+// HTTP Chunked Transfer Decoding State Machine
+enum {
+    CHUNK_STATE_SIZE, // Reading hexadecimal chunk length
+    CHUNK_STATE_DATA, // Writing exact chunk data payload
+    CHUNK_STATE_CRLF  // Skipping trailing \r\n boundary
+};
+
+typedef struct {
+    int state;
+    long long remainingSize;
+    char sizeBuf[32];
+    int sizeBufLen;
+    FILE* outFile;
+    long long writtenBytes;
+} ChunkedParser;
+
+// Strips HTTP chunked transfer framing on the fly so raw file data is saved cleanly
+void ProcessChunkedData(ChunkedParser* parser, const char* data, int len) {
+    int i = 0;
+    while (i < len) {
+        if (parser->state == CHUNK_STATE_SIZE) {
+            char c = data[i++];
+            if (c == '\r') {
+                // Ignore
+            } else if (c == '\n') {
+                parser->sizeBuf[parser->sizeBufLen] = '\0';
+                parser->remainingSize = strtoll(parser->sizeBuf, NULL, 16);
+                parser->sizeBufLen = 0;
+                if (parser->remainingSize == 0) {
+                    parser->state = CHUNK_STATE_CRLF;
+                } else {
+                    parser->state = CHUNK_STATE_DATA;
+                }
+            } else {
+                if (parser->sizeBufLen < (int)sizeof(parser->sizeBuf) - 1) {
+                    parser->sizeBuf[parser->sizeBufLen++] = c;
+                }
+            }
+        } else if (parser->state == CHUNK_STATE_DATA) {
+            long long available = len - i;
+            long long toWrite = (available < parser->remainingSize) ? available : parser->remainingSize;
+            if (toWrite > 0) {
+                if (parser->outFile) {
+                    fwrite(data + i, 1, toWrite, parser->outFile);
+                }
+                parser->writtenBytes += toWrite;
+                parser->remainingSize -= toWrite;
+                i += toWrite;
+            }
+            if (parser->remainingSize == 0) {
+                parser->state = CHUNK_STATE_CRLF;
+            }
+        } else if (parser->state == CHUNK_STATE_CRLF) {
+            char c = data[i++];
+            if (c == '\n') {
+                parser->state = CHUNK_STATE_SIZE;
+            }
+        }
+    }
+}
 
 typedef struct {
     SOCKET clientSocket;
@@ -30,16 +107,92 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
     char cleartextBuffer[32768];
     int clearLen = 0;
 
-    if (useTls) {
-        clearLen = TlsRead(tls, cleartextBuffer, sizeof(cleartextBuffer) - 1);
-    } else {
-        clearLen = recv(clientSocket, cleartextBuffer, sizeof(cleartextBuffer) - 1, 0);
+    cleartextBuffer[0] = '\0';
+    printf("[TCP Debug] Started reading HTTP headers from %s...\n", clientIP);
+
+    // Read from socket until end of HTTP headers sequence is received
+    while (clearLen < sizeof(cleartextBuffer) - 1) {
+        if (strstr(cleartextBuffer, "\r\n\r\n") != NULL) {
+            break;
+        }
+        int readNow = 0;
+        if (useTls) {
+            readNow = TlsRead(tls, cleartextBuffer + clearLen, sizeof(cleartextBuffer) - 1 - clearLen);
+        } else {
+            readNow = recv(clientSocket, cleartextBuffer + clearLen, sizeof(cleartextBuffer) - 1 - clearLen, 0);
+        }
+        printf("[TCP] readNow = %d\n", readNow);
+        if (readNow <= 0) break;
+        clearLen += readNow;
+        cleartextBuffer[clearLen] = '\0';
     }
 
-    if (clearLen <= 0) return;
-    cleartextBuffer[clearLen] = '\0';
+    printf("[TCP] Finished reading HTTP headers. clearLen = %d\n", clearLen);
+    if (clearLen <= 0) {
+        printf("[TCP] Read failed or empty! WSA error = %d\n", WSAGetLastError());
+        return;
+    }
+    printf("[TCP] Request headers:\n%s\n", cleartextBuffer);
 
+    // Read the remaining HTTP body based on Content-Length header
+    char* bodyStart = strstr(cleartextBuffer, "\r\n\r\n");
+    if (bodyStart) {
+        bodyStart += 4;
+        int headersLen = (int)(bodyStart - cleartextBuffer);
+        char* contentLengthPtr = strstr(cleartextBuffer, "Content-Length:");
+        if (!contentLengthPtr) contentLengthPtr = strstr(cleartextBuffer, "content-length:");
+        if (contentLengthPtr) {
+            int contentLength = atoi(contentLengthPtr + 15);
+            while (clearLen < headersLen + contentLength && clearLen < sizeof(cleartextBuffer) - 1) {
+                int readNow = 0;
+                if (useTls) {
+                    readNow = TlsRead(tls, cleartextBuffer + clearLen, sizeof(cleartextBuffer) - 1 - clearLen);
+                } else {
+                    readNow = recv(clientSocket, cleartextBuffer + clearLen, sizeof(cleartextBuffer) - 1 - clearLen, 0);
+                }
+                if (readNow <= 0) break;
+                clearLen += readNow;
+                cleartextBuffer[clearLen] = '\0';
+            }
+        }
+    }
+
+    // Handshake exchange of device aliases and fingerprints
+    if (strstr(cleartextBuffer, "POST /api/localsend/v2/register") != NULL) {
+        printf("Received register request...\n");
+        RemoteDevice discoveredDevice;
+        if (parseLocalSendJSON(cleartextBuffer, &discoveredDevice)) {
+            if (strcmp(discoveredDevice.fingerprint, g_MyFingerprint) != 0) {
+                _snprintf(discoveredDevice.ipAddress, sizeof(discoveredDevice.ipAddress), "%s", clientIP);
+                if (g_hWndMain) {
+                    RemoteDevice* pDeviceCopy = (RemoteDevice*)malloc(sizeof(RemoteDevice));
+                    if (pDeviceCopy) {
+                        memcpy(pDeviceCopy, &discoveredDevice, sizeof(RemoteDevice));
+                        PostMessage(g_hWndMain, WM_DEVICE_DISCOVERED, 0, (LPARAM)pDeviceCopy);
+                    }
+                }
+                printf("[Found Device via HTTP] -> %s (%s)\n", discoveredDevice.alias, discoveredDevice.ipAddress);
+            }
+        }
+
+        // Respond with own device metadata
+        char jsonResponse[1024];
+        _snprintf(jsonResponse, sizeof(jsonResponse),
+            "{\"alias\":\"%s\",\"version\":\"2.0\",\"deviceModel\":\"%s\",\"deviceType\":\"%s\",\"fingerprint\":\"%s\",\"port\":%d,\"protocol\":\"%s\",\"download\":false}",
+            g_MyDeviceName, g_DeviceModel, GetProtocolDeviceType(g_DeviceType), g_MyFingerprint, g_Port, useTls ? "https" : "http"
+        );
+
+        char httpResponse[2048];
+        sprintf(httpResponse, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", (int)strlen(jsonResponse), jsonResponse);
+
+        if (useTls) TlsWrite(tls, httpResponse, strlen(httpResponse));
+        else send(clientSocket, httpResponse, strlen(httpResponse), 0);
+        return;
+    }
+
+    // Parses file queue metadata, validates PIN, and prompts user confirmation
     if (strstr(cleartextBuffer, "POST /api/localsend/v2/prepare-upload") != NULL) {
+        // Extract sender alias or device model name from incoming JSON body
         char *aliasPtr = strstr(cleartextBuffer, "\"alias\":\"");
         if (aliasPtr) {
             aliasPtr += 9;
@@ -62,10 +215,12 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
 
         printf("\nprepare-upload request...\n");
 
+        // Reset the incoming file queue and completion tracker
         g_fileQueueCount = 0;
         g_completedFilesCount = 0;
         memset(g_fileQueue, 0, sizeof(g_fileQueue));
 
+        // Parse list of files offer by reading each fileId, fileName, and size
         char *searchPtr = strstr(cleartextBuffer, "\"files\":{");
         if (searchPtr) {
             while (g_fileQueueCount < MAX_QUEUE_FILES) {
@@ -95,6 +250,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             }
         }
 
+        // Validate PIN requirement if enabled in settings
         bool pinValid = true;
         if (g_RequirePin) {
             char pinParam[32] = {0};
@@ -118,6 +274,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
         }
 
         char httpResponse[1536];
+        // Send HTTP 401 Unauthorized if provided PIN doesn't match
         if (!pinValid) {
             const char* jsonResponse = "{\"detail\":\"PIN invalid or required\"}";
             sprintf(httpResponse, "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", (int)strlen(jsonResponse), jsonResponse);
@@ -126,6 +283,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             return;
         }
 
+        // Prompt user confirmation dialog if QuickSave is disabled
         bool acceptTransfer = true;
         char tempSavePath[MAX_PATH] = {0};
         if (!g_QuickSave) {
@@ -147,6 +305,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             }
         }
 
+        // Return session ID and per-file tokens to client if transfer was accepted
         if (acceptTransfer) {
             if (!g_QuickSave) {
                 strcpy(g_SessionSavePath, tempSavePath);
@@ -165,6 +324,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
 
             sprintf(httpResponse, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", (int)strlen(jsonResponse), jsonResponse);
         } else {
+            // User rejected incoming transfer: send HTTP 403 Forbidden
             const char* jsonResponse = "{\"error\":\"declined\"}";
             sprintf(httpResponse, "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", (int)strlen(jsonResponse), jsonResponse);
         }
@@ -172,11 +332,13 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
         if (useTls) TlsWrite(tls, httpResponse, strlen(httpResponse));
         else send(clientSocket, httpResponse, strlen(httpResponse), 0);
     }
+    // Route 3: File Upload - receives incoming binary payload stream and saves file to disk
     else if (strstr(cleartextBuffer, "POST /api/localsend/v2/upload") != NULL) {
         char currentFileName[256] = "download_error.dat";
         long long currentFileSize = 0;
         char extractedId[128] = {0};
 
+        // Locate fileId query parameter to identify which file from the queue is being uploaded
         char *urlIdPtr = strstr(cleartextBuffer, "fileId=");
         if (urlIdPtr) {
             urlIdPtr += 7;
@@ -194,6 +356,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             }
         }
 
+        // Build target destination path on local disk
         char finalPath[MAX_PATH] = {0};
         if (g_SessionSavePath[0] != '\0') {
             _snprintf(finalPath, sizeof(finalPath), "%s\\%s", g_SessionSavePath, currentFileName);
@@ -201,6 +364,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             GetConfiguredSavePath(finalPath, sizeof(finalPath), currentFileName);
         }
 
+        // Create new binary file for incoming content
         FILE* f = fopen(finalPath, "wb");
         if (g_hWndMain) {
             FileStartInfo* info = (FileStartInfo*)malloc(sizeof(FileStartInfo));
@@ -213,18 +377,33 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             }
         }
 
+        // Detect if HTTP chunked transfer encoding is used by sender
+        bool isChunked = (stristr(cleartextBuffer, "Transfer-Encoding: chunked") != NULL);
+        ChunkedParser chunkParser = {0};
+        if (isChunked) {
+            chunkParser.state = CHUNK_STATE_SIZE;
+            chunkParser.outFile = f;
+        }
+
+        // Process any body bytes already read into initial header buffer
         long long uploadedBytesCount = 0;
         char* bodyStart = strstr(cleartextBuffer, "\r\n\r\n");
         if (bodyStart) {
             bodyStart += 4;
             int headerLen = bodyStart - cleartextBuffer;
             int fileBytesInFirstBlock = clearLen - headerLen;
-            if (f && fileBytesInFirstBlock > 0) {
-                fwrite(bodyStart, 1, fileBytesInFirstBlock, f);
-                uploadedBytesCount += fileBytesInFirstBlock;
+            if (fileBytesInFirstBlock > 0) {
+                if (isChunked) {
+                    ProcessChunkedData(&chunkParser, bodyStart, fileBytesInFirstBlock);
+                    uploadedBytesCount = chunkParser.writtenBytes;
+                } else {
+                    if (f) fwrite(bodyStart, 1, fileBytesInFirstBlock, f);
+                    uploadedBytesCount += fileBytesInFirstBlock;
+                }
             }
         }
 
+        // Update transfer progress bar in UI
         if (g_hWndMain && currentFileSize > 0) {
             int pct = (int)((uploadedBytesCount * 100) / currentFileSize);
             FileProgressInfo* info = (FileProgressInfo*)malloc(sizeof(FileProgressInfo));
@@ -235,6 +414,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             }
         }
 
+        // Receive remaining data stream in 16KB blocks until file size is fully reached
         bool transferInterrupted = false;
         while (uploadedBytesCount < currentFileSize) {
             char readBuf[16384];
@@ -250,9 +430,15 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
                 break;
             }
 
-            if (f) fwrite(readBuf, 1, bytesRead, f);
-            uploadedBytesCount += bytesRead;
+            if (isChunked) {
+                ProcessChunkedData(&chunkParser, readBuf, bytesRead);
+                uploadedBytesCount = chunkParser.writtenBytes;
+            } else {
+                if (f) fwrite(readBuf, 1, bytesRead, f);
+                uploadedBytesCount += bytesRead;
+            }
 
+            // Periodically refresh UI progress percentage
             if (g_hWndMain && currentFileSize > 0) {
                 int pct = (int)((uploadedBytesCount * 100) / currentFileSize);
                 FileProgressInfo* info = (FileProgressInfo*)malloc(sizeof(FileProgressInfo));
@@ -266,6 +452,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
 
         if (f) fclose(f);
 
+        // Delete incomplete partial file if socket dropped or transfer was aborted
         if (transferInterrupted || uploadedBytesCount < currentFileSize) {
             DeleteFileA(finalPath);
             if (g_hWndMain) {
@@ -274,12 +461,13 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
                     strcpy(canceledId, extractedId);
                     PostMessage(g_hWndMain, WM_FILE_CANCEL, 0, (LPARAM)canceledId);
                 }
-                SetWindowTextA(hWndStatus, "Transfer canceled by sender.");
+                SetWindowTextA(hWndStatus, g_Lang.msgTransferCanceled);
             }
             g_fileQueueCount = 0;
             g_completedFilesCount = 0;
             memset(g_fileQueue, 0, sizeof(g_fileQueue));
         } else {
+            // File upload completed successfully: acknowledge client with HTTP 200 OK
             LONG completed = InterlockedIncrement((LONG volatile *)&g_completedFilesCount);
             char httpOk[256];
             sprintf(httpOk, "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
@@ -287,6 +475,7 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
             if (useTls) TlsWrite(tls, httpOk, strlen(httpOk));
             else send(clientSocket, httpOk, strlen(httpOk), 0);
 
+            // If all files in queue are finished, notify main window
             if (completed >= g_fileQueueCount) {
                 g_fileQueueCount = 0;
                 g_completedFilesCount = 0;
@@ -299,65 +488,122 @@ void handleClientSession(SOCKET clientSocket, TlsSocket* tls, const char* client
     }
 }
 
-// Handles client connection (initiating TLS if needed)
+// Handles client connection
 DWORD WINAPI ClientThread(LPVOID lpParam) {
     ClientContext* ctx = (ClientContext*)lpParam;
-    bool useTls = (g_EnableEncryption != 0);
 
+    // Peek first byte to automatically detect TLS handshake (0x16) vs plain HTTP ('P', 'G', etc.)
+    char peekByte = 0;
+    int peekRes = recv(ctx->clientSocket, &peekByte, 1, MSG_PEEK);
+    bool isTlsConnection = (peekRes == 1 && (unsigned char)peekByte == 0x16);
+    bool useTls = isTlsConnection && (g_EnableEncryption != 0) && TlsIsAvailable();
+
+    printf("[TCP] ClientThread started for %s (isTls=%d, useTls=%d)\n", ctx->clientIP, isTlsConnection, useTls);
+    fflush(stdout);
+
+    // Negotiate TLS server session with connecting client if encryption is active and peer sent TLS ClientHello
     TlsSocket* tls = NULL;
     if (useTls) {
+        printf("[TCP] Attempting TlsAccept for %s...\n", ctx->clientIP);
+        fflush(stdout);
         tls = TlsAccept(ctx->clientSocket);
+        printf("[TCP] TlsAccept result for %s: %s\n", ctx->clientIP, (tls != NULL) ? "SUCCESS" : "FAILURE");
+        fflush(stdout);
     }
 
+    // Process HTTP protocol session over cleartext or TLS socket
     if (!useTls || tls != NULL) {
         handleClientSession(ctx->clientSocket, tls, ctx->clientIP, useTls);
     }
 
+    // Clean up socket resources and client session context
     if (tls) TlsFreeSocket(tls);
     closesocket(ctx->clientSocket);
+    printf("[TCP] ClientThread finished for %s\n", ctx->clientIP);
+    fflush(stdout);
     free(ctx);
     return 0;
 }
 
+extern void UpdateNetworkInfoText(void);
+
+static void PostUpdateNetworkInfo(void) {
+    if (g_hWndMain) {
+        PostMessage(g_hWndMain, WM_UPDATE_NET_INFO, 0, 0);
+    } else {
+        UpdateNetworkInfoText();
+    }
+}
+
 // Main TCP server loop
 DWORD WINAPI tcpServerThread(LPVOID lpParam) {
+    printf("[TCP Thread] tcpServerThread entered!\n");
+    fflush(stdout);
+    g_TcpServerStatus = 0;
+    PostUpdateNetworkInfo();
     SOCKET listeningSocket = INVALID_SOCKET;
     SOCKET clientSocket = INVALID_SOCKET;
-    struct sockaddr_in serverAddr, clientAddr;
-    int clientAddrLen = sizeof(clientAddr);
+    struct sockaddr_in serverAddr = {0}, clientAddr = {0};
 
+    // Create listening stream socket
     listeningSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listeningSocket == INVALID_SOCKET) return 1;
+    if (listeningSocket == INVALID_SOCKET) {
+        printf("[TCP Thread] socket() failed: %d\n", WSAGetLastError());
+        fflush(stdout);
+        g_TcpServerStatus = -1;
+        PostUpdateNetworkInfo();
+        return 1;
+    }
 
+    // Allow immediate socket address reuse to prevent bind errors after quick restarts
     int reuse = 1;
     setsockopt(listeningSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
 
+    // Bind to all local interfaces on the configured port
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(g_Port);
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     if (bind(listeningSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        printf("TCP Server bind failed: %d\n", WSAGetLastError());
+        fflush(stdout);
         closesocket(listeningSocket);
+        g_TcpServerStatus = -1;
+        PostUpdateNetworkInfo();
         return 1;
     }
 
     if (listen(listeningSocket, 5) == SOCKET_ERROR) {
+        printf("TCP Server listen failed: %d\n", WSAGetLastError());
+        fflush(stdout);
         closesocket(listeningSocket);
+        g_TcpServerStatus = -1;
+        PostUpdateNetworkInfo();
         return 1;
     }
 
+    // Server successfully listening
+    g_TcpServerStatus = 1;
+    PostUpdateNetworkInfo();
+    printf("TCP Server bound and listening on port %d...\n", g_Port);
+    fflush(stdout);
+
+    // Accept loop: spawn a dedicated worker thread for each connecting peer
     while (1) {
+        int clientAddrLen = sizeof(clientAddr);
         clientSocket = accept(listeningSocket, (SOCKADDR*)&clientAddr, &clientAddrLen);
         if (clientSocket == INVALID_SOCKET) continue;
 
         char* clientIP = inet_ntoa(clientAddr.sin_addr);
+        printf("TCP Server accepted incoming connection from %s\n", clientIP);
         ClientContext* ctx = (ClientContext*)malloc(sizeof(ClientContext));
         if (ctx) {
             ctx->clientSocket = clientSocket;
             strncpy(ctx->clientIP, clientIP, sizeof(ctx->clientIP) - 1);
             ctx->clientIP[sizeof(ctx->clientIP) - 1] = '\0';
 
-            HANDLE hThread = CreateThread(NULL, 0, ClientThread, ctx, 0, NULL);
+            DWORD thId = 0;
+            HANDLE hThread = CreateThread(NULL, 0, ClientThread, ctx, 0, &thId);
             if (hThread) {
                 CloseHandle(hThread);
             }

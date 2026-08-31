@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="cp1252" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Notes about this version</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="prev" title="Problems" href="problems.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="notes-about-this-version">
+<h1>Notes about this version</h1>
+<p>The version you&rsquo;ve downloaded is <strong>Version 2.0.0</strong>, compiled on 1st September 2026.</p>
+<p>As of this version, LocalSend32 works on x86-32, x86-64, ARM32 and ARM64, and all versions use OpenSSL. The versions are divided as follows:</p>
+<ul class="simple">
+<li><p><strong>LocalSend9x</strong>: LocalSend for Windows NT 3.51/95/98/ME/NT 4/2000.</p>
+<ul>
+<li><p><em>Note</em>: this version doesn&rsquo;t have certain UI graphical elements that other versions do. You need also to have OpenSSL compiled in the same folder</p></li>
+<li><p>On Windows NT 3.51 it can have graphical issues for certain buttons, and doesn&rsquo;t properly support multi-device sending</p></li>
+<li><p>On Windows NT 3.51 and Windows 95, you might need to disable TLS encryption in order to make it work</p></li>
+</ul>
+</li>
+<li><p><strong>LocalSend32</strong>: LocalSend for Vista or superior.</p></li>
+<li><p><strong>LocalSendRT</strong>: LocalSend for Windows RT (8.0, 8.1, 10)</p></li>
+<li><p><strong>LocalSendARM</strong>: LocalSend for Windows 10/11 ARM (ARM64)</p></li>
+</ul>
+<p>The following new things have been introduced in this version:</p>
+<ul class="simple">
+<li><p>All versions now use OpenSSL due to a change in LocalSend 1.18, now needing TLS3 for https connections</p></li>
+<li><p>Now the tray icon has a right click menu where you can drop files in, and quickly select a device to send these files to</p></li>
+<li><p>Completed the full translation in italian and english (I did forget quite a few strings)</p></li>
+<li><p>Added Simplified Chinese translation (thanks BluestacksPenguin)</p></li>
+<li><p>Fixed a bug where it wouldn&rsquo;t see other devices on the network if you were through a VPN or mobile hotspot</p></li>
+<li><p>Now the app checks on RT on first run if it has correctly added the firewall rules or not</p></li>
+<li><p>Fixed a bug where the send files button was enabled only when clicking on a device, rather than selecting one</p></li>
+<li><p>Now you can cancel sending jobs</p></li>
+<li><p>Errors as to why something isn&rsquo;t sending or stuff is more descriptive</p></li>
+<li><p>You can choose to recursive add files and folders when adding a folder to send</p></li>
+<li><p>Network status in the Receive tab now change dynamically according to your network (so your IP isn&rsquo;t always the same, yk, kinda useful)</p></li>
+<li><p>Improved the code with more comments and a bit more separation</p></li>
+<li><p>Created versons for NT 3.51 and superior, and ARM64.</p></li>
+<li><p>This guide for new users</p></li>
+</ul>
+</section>
+<section id="previous-versions">
+<h1>Previous versions</h1>
+<p>This paragraph includes the changelog notes of all previous versions prior to this, taken directly from the GitHub repository.</p>
+<section id="version-1-1">
+<h2>Version 1.1</h2>
+<p>The following new things have been introduced in this version:</p>
+<ul class="simple">
+<li><p>Multi-device sending of files, by selecting multiple devices under the Send tab with checkboxes</p></li>
+<li><p>Languages support in utils.c with the language selector under Settings</p></li>
+<li><p>LocalSend32 checks at startup if the OpenSSL DLLs are present in the folder</p></li>
+<li><p>Fixed a bug where some UI elements could become empty when not interacting with it</p></li>
+<li><p>Refactored main.c into more sub-files</p></li>
+</ul>
+</section>
+<section id="version-1-0">
+<h2>Version 1.0</h2>
+<p>The following things have been introduced in this version (over the pre-release):</p>
+<ul class="simple">
+<li><p>New icon</p></li>
+<li><p>Few bug fixes</p></li>
+</ul>
+</section>
+</section>
+
+
+          </div>
+          
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2026, Fratta.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

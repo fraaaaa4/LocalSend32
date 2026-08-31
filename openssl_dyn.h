@@ -36,8 +36,10 @@ typedef int (*fn_EVP_PKEY_CTX_set_rsa_keygen_bits)(EVP_PKEY_CTX* ctx, int bits);
 typedef int (*fn_EVP_PKEY_keygen)(EVP_PKEY_CTX* ctx, EVP_PKEY** ppkey);
 typedef void (*fn_EVP_PKEY_CTX_free)(EVP_PKEY_CTX* ctx);
 typedef void (*fn_EVP_PKEY_free)(EVP_PKEY* pkey);
+typedef int (*fn_SSL_get_error)(const SSL* s, int ret_code);
 
 typedef X509* (*fn_X509_new)(void);
+typedef int (*fn_X509_set_version)(X509* x, long version);
 typedef ASN1_INTEGER* (*fn_X509_get_serialNumber)(X509* x);
 typedef int (*fn_ASN1_INTEGER_set)(ASN1_INTEGER* a, long v);
 typedef ASN1_TIME* (*fn_X509_getm_notBefore)(const X509* x);
@@ -50,6 +52,7 @@ typedef int (*fn_X509_set_issuer_name)(X509* x, const X509_NAME* name);
 typedef const EVP_MD* (*fn_EVP_sha256)(void);
 typedef int (*fn_X509_sign)(X509* x, EVP_PKEY* pkey, const EVP_MD* md);
 typedef void (*fn_X509_free)(X509* x);
+typedef int (*fn_X509_digest)(const X509* data, const EVP_MD* type, unsigned char* md, unsigned int* len);
 
 // Extern pointers
 extern fn_OPENSSL_init_ssl dyn_OPENSSL_init_ssl;
@@ -68,6 +71,7 @@ extern fn_SSL_free dyn_SSL_free;
 extern fn_SSL_read dyn_SSL_read;
 extern fn_SSL_write dyn_SSL_write;
 extern fn_SSL_shutdown dyn_SSL_shutdown;
+extern fn_SSL_get_error dyn_SSL_get_error;
 
 extern fn_EVP_PKEY_CTX_new_id dyn_EVP_PKEY_CTX_new_id;
 extern fn_EVP_PKEY_keygen_init dyn_EVP_PKEY_keygen_init;
@@ -77,6 +81,7 @@ extern fn_EVP_PKEY_CTX_free dyn_EVP_PKEY_CTX_free;
 extern fn_EVP_PKEY_free dyn_EVP_PKEY_free;
 
 extern fn_X509_new dyn_X509_new;
+extern fn_X509_set_version dyn_X509_set_version;
 extern fn_X509_get_serialNumber dyn_X509_get_serialNumber;
 extern fn_ASN1_INTEGER_set dyn_ASN1_INTEGER_set;
 extern fn_X509_getm_notBefore dyn_X509_getm_notBefore;
@@ -89,5 +94,6 @@ extern fn_X509_set_issuer_name dyn_X509_set_issuer_name;
 extern fn_EVP_sha256 dyn_EVP_sha256;
 extern fn_X509_sign dyn_X509_sign;
 extern fn_X509_free dyn_X509_free;
+extern fn_X509_digest dyn_X509_digest;
 
 #endif

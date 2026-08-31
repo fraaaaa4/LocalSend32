@@ -39,6 +39,9 @@
 #define EVP_sha256 dyn_EVP_sha256
 #define X509_sign dyn_X509_sign
 #define X509_free dyn_X509_free
+#define X509_set_version dyn_X509_set_version
+#define X509_digest dyn_X509_digest
+#define SSL_get_error dyn_SSL_get_error
 
 
 static SSL_CTX* g_sslCtxClient = NULL;
@@ -49,6 +52,11 @@ struct TlsSocket {
     SSL* ssl;
 };
 
+bool TlsIsAvailable(void) {
+    return (g_sslCtxServer != NULL && g_sslCtxClient != NULL);
+}
+
+// Generates a 2048-bit RSA keypair in memory for TLS session encryption
 static EVP_PKEY* generatePrivateKey() {
     EVP_PKEY* pkey = NULL;
     EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, NULL);
@@ -62,10 +70,12 @@ static EVP_PKEY* generatePrivateKey() {
     return pkey;
 }
 
+// Generates an ephemeral self-signed X.509 certificate valid for 1 year
 static X509* generateSelfSignedCertificate(EVP_PKEY* pkey) {
     X509* x509 = X509_new();
     if (!x509) return NULL;
 
+    X509_set_version(x509, 2);
     ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
     X509_gmtime_adj(X509_get_notBefore(x509), 0);
     X509_gmtime_adj(X509_get_notAfter(x509), 31536000L); // 1 year
@@ -76,6 +86,7 @@ static X509* generateSelfSignedCertificate(EVP_PKEY* pkey) {
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char*)"LocalSendRT", -1, -1, 0);
     X509_set_issuer_name(x509, name);
 
+    // Sign certificate with our private key using SHA-256 digest
     if (!X509_sign(x509, pkey, EVP_sha256())) {
         X509_free(x509);
         return NULL;
@@ -83,27 +94,70 @@ static X509* generateSelfSignedCertificate(EVP_PKEY* pkey) {
     return x509;
 }
 
+extern char g_MyFingerprint[];
+
 bool TlsInitGlobal() {
-    if (!LoadOpenSSLDynamically()) return false;
+    if (!LoadOpenSSLDynamically()) {
+        printf("[OpenSSL] LoadOpenSSLDynamically failed!\n");
+        return false;
+    }
+    // Initialize OpenSSL library using dynamic function pointers loaded from DLL
     dyn_OPENSSL_init_ssl(0, NULL);
 
     g_sslCtxClient = SSL_CTX_new(TLS_client_method());
-    if (!g_sslCtxClient) return false;
+    if (!g_sslCtxClient) {
+        printf("[OpenSSL] SSL_CTX_new (client) failed!\n");
+        return false;
+    }
+    // Bypass verification check
     SSL_CTX_set_verify(g_sslCtxClient, SSL_VERIFY_NONE, NULL);
 
     g_sslCtxServer = SSL_CTX_new(TLS_server_method());
-    if (!g_sslCtxServer) return false;
+    if (!g_sslCtxServer) {
+        printf("[OpenSSL] SSL_CTX_new (server) failed!\n");
+        return false;
+    }
 
     EVP_PKEY* pkey = generatePrivateKey();
-    if (pkey) {
+    if (!pkey) {
+        printf("[OpenSSL] generatePrivateKey failed!\n");
+    } else {
         X509* cert = generateSelfSignedCertificate(pkey);
-        if (cert) {
-            SSL_CTX_use_certificate(g_sslCtxServer, cert);
-            SSL_CTX_use_PrivateKey(g_sslCtxServer, pkey);
+        if (!cert) {
+            printf("[OpenSSL] generateSelfSignedCertificate failed!\n");
+        } else {
+            // Calculate SHA-256 hash of certificate to use as fingerprint
+            unsigned char md[32];
+            unsigned int mdLen = sizeof(md);
+            if (X509_digest(cert, EVP_sha256(), md, &mdLen)) {
+                char hex[65] = {0};
+                for (unsigned int i = 0; i < mdLen; i++) {
+                    sprintf(hex + (i * 2), "%02x", md[i]);
+                }
+                strcpy(g_MyFingerprint, hex);
+                printf("[OpenSSL] Generated fingerprint: %s\n", g_MyFingerprint);
+            } else {
+                printf("[OpenSSL] X509_digest failed!\n");
+            }
+
+            if (SSL_CTX_use_certificate(g_sslCtxServer, cert) <= 0) {
+                printf("[OpenSSL] SSL_CTX_use_certificate (server) failed!\n");
+            }
+            if (SSL_CTX_use_PrivateKey(g_sslCtxServer, pkey) <= 0) {
+                printf("[OpenSSL] SSL_CTX_use_PrivateKey (server) failed!\n");
+            }
+
+            if (SSL_CTX_use_certificate(g_sslCtxClient, cert) <= 0) {
+                printf("[OpenSSL] SSL_CTX_use_certificate (client) failed!\n");
+            }
+            if (SSL_CTX_use_PrivateKey(g_sslCtxClient, pkey) <= 0) {
+                printf("[OpenSSL] SSL_CTX_use_PrivateKey (client) failed!\n");
+            }
             X509_free(cert);
         }
         EVP_PKEY_free(pkey);
     }
+    printf("[OpenSSL] TLS Global initialization completed.\n");
     return true;
 }
 
@@ -113,6 +167,7 @@ void TlsCleanupGlobal() {
     FreeOpenSSLDynamically();
 }
 
+// Establishes an outbound client TLS session over an active connected TCP socket
 TlsSocket* TlsConnect(SOCKET sock, const char* targetIP) {
     if (!g_sslCtxClient) return NULL;
     TlsSocket* tls = (TlsSocket*)malloc(sizeof(TlsSocket));
@@ -125,8 +180,12 @@ TlsSocket* TlsConnect(SOCKET sock, const char* targetIP) {
         return NULL;
     }
 
+    // Attach Windows socket descriptor to OpenSSL SSL object
     SSL_set_fd(tls->ssl, (int)sock);
-    if (SSL_connect(tls->ssl) <= 0) {
+    int connRes = SSL_connect(tls->ssl);
+    if (connRes <= 0) {
+        int err = SSL_get_error(tls->ssl, connRes);
+        printf("[OpenSSL] SSL_connect failed: result=%d, error=%d, WSA error=%d\n", connRes, err, WSAGetLastError());
         SSL_free(tls->ssl);
         free(tls);
         return NULL;
@@ -134,6 +193,7 @@ TlsSocket* TlsConnect(SOCKET sock, const char* targetIP) {
     return tls;
 }
 
+// Accepts an incoming inbound client connection and completes the TLS handshake
 TlsSocket* TlsAccept(SOCKET clientSock) {
     if (!g_sslCtxServer) return NULL;
     TlsSocket* tls = (TlsSocket*)malloc(sizeof(TlsSocket));
@@ -146,8 +206,12 @@ TlsSocket* TlsAccept(SOCKET clientSock) {
         return NULL;
     }
 
+    // Attach accepted socket handle to server SSL context
     SSL_set_fd(tls->ssl, (int)clientSock);
-    if (SSL_accept(tls->ssl) <= 0) {
+    int acceptRes = SSL_accept(tls->ssl);
+    if (acceptRes <= 0) {
+        int err = SSL_get_error(tls->ssl, acceptRes);
+        printf("[OpenSSL] SSL_accept failed: result=%d, error=%d, WSA error=%d\n", acceptRes, err, WSAGetLastError());
         SSL_free(tls->ssl);
         free(tls);
         return NULL;
@@ -155,16 +219,19 @@ TlsSocket* TlsAccept(SOCKET clientSock) {
     return tls;
 }
 
+// Decrypts and reads received stream bytes from active TLS session
 int TlsRead(TlsSocket* tls, char* outBuffer, int maxLen) {
     if (!tls || !tls->ssl) return -1;
     return SSL_read(tls->ssl, outBuffer, maxLen);
 }
 
+// Encrypts and transmits payload buffer over active TLS session
 int TlsWrite(TlsSocket* tls, const char* message, int len) {
     if (!tls || !tls->ssl) return -1;
     return SSL_write(tls->ssl, message, len);
 }
 
+// Shuts down encrypted session and frees SSL handle
 void TlsFreeSocket(TlsSocket* tls) {
     if (tls) {
         if (tls->ssl) {

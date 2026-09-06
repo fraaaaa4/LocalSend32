@@ -31,6 +31,8 @@
 #define ASN1_INTEGER_set dyn_ASN1_INTEGER_set
 #define X509_getm_notBefore dyn_X509_getm_notBefore
 #define X509_getm_notAfter dyn_X509_getm_notAfter
+#define X509_get_notBefore dyn_X509_getm_notBefore
+#define X509_get_notAfter dyn_X509_getm_notAfter
 #define X509_gmtime_adj dyn_X509_gmtime_adj
 #define X509_set_pubkey dyn_X509_set_pubkey
 #define X509_get_subject_name dyn_X509_get_subject_name

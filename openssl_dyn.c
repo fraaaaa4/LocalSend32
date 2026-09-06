@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "openssl_dyn.h"
 
 BOOL g_OpenSSLLoaded = FALSE;
@@ -66,12 +67,37 @@ static const OpenSSLDllPair g_DllPairs[] = {
 BOOL LoadOpenSSLDynamically(void) {
     if (g_OpenSSLLoaded) return TRUE;
 
+    char exePath[MAX_PATH] = {0};
+    char exeDir[MAX_PATH] = {0};
+    if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+        char* lastSlash = strrchr(exePath, '\\');
+        if (lastSlash) {
+            *lastSlash = '\0';
+            strcpy(exeDir, exePath);
+            SetDllDirectoryA(exeDir);
+        }
+    }
+
     // Load matching pairs of crypto and ssl DLLs to avoid version/ABI mismatches
     int numPairs = sizeof(g_DllPairs) / sizeof(g_DllPairs[0]);
     for (int i = 0; i < numPairs; i++) {
+        char fullCrypto[MAX_PATH] = {0};
+        char fullSsl[MAX_PATH] = {0};
+        if (exeDir[0]) {
+            _snprintf(fullCrypto, sizeof(fullCrypto), "%s\\%s", exeDir, g_DllPairs[i].cryptoName);
+            _snprintf(fullSsl, sizeof(fullSsl), "%s\\%s", exeDir, g_DllPairs[i].sslName);
+        }
+
         g_hCrypto = LoadLibraryA(g_DllPairs[i].cryptoName);
+        if (!g_hCrypto && fullCrypto[0]) {
+            g_hCrypto = LoadLibraryA(fullCrypto);
+        }
+
         if (g_hCrypto) {
             g_hSsl = LoadLibraryA(g_DllPairs[i].sslName);
+            if (!g_hSsl && fullSsl[0]) {
+                g_hSsl = LoadLibraryA(fullSsl);
+            }
             if (g_hSsl) {
                 printf("[OpenSSL] Loaded %s and %s successfully!\n", g_DllPairs[i].cryptoName, g_DllPairs[i].sslName);
                 fflush(stdout);

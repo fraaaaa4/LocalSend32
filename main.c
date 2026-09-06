@@ -25,6 +25,7 @@
 #include "ui_creator.h"
 #include "layout.h"
 #include "tray_menu.h"
+#include "openssl_dyn.h"
 
 void ApplyWindowFont(HWND hWndChild);
 void ApplyLargeFont(HWND hWndChild);
@@ -1198,20 +1199,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #if !defined(__arm__) && !defined(LOCALSEND_NT)
-    HMODULE hCrypto = LoadLibraryA("libcrypto-3.dll");
-    HMODULE hSsl = LoadLibraryA("libssl-3.dll");
-    if (!hCrypto || !hSsl) {
-        const char* errMsg = "";
-        if (!hCrypto && !hSsl) errMsg = g_Lang.errBothMissing;
-        else if (!hCrypto) errMsg = g_Lang.errCryptoMissing;
-        else errMsg = g_Lang.errSslMissing;
-        MessageBoxA(NULL, errMsg, g_Lang.titleError, MB_ICONERROR);
-        if (hCrypto) FreeLibrary(hCrypto);
-        if (hSsl) FreeLibrary(hSsl);
+    if (!LoadOpenSSLDynamically()) {
+        MessageBoxA(NULL, g_Lang.errBothMissing, g_Lang.titleError, MB_ICONERROR);
         return 1;
     }
-    FreeLibrary(hCrypto);
-    FreeLibrary(hSsl);
 #endif
 #ifndef LOCALSEND_NT
     if (!checkRulesExistence()) {

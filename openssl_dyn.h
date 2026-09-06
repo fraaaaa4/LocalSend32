@@ -4,8 +4,28 @@
 #include <windows.h>
 #undef X509_NAME
 
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+typedef struct ssl_method_st SSL_METHOD;
+typedef struct ssl_ctx_st SSL_CTX;
+typedef struct ssl_st SSL;
+typedef struct evp_pkey_ctx_st EVP_PKEY_CTX;
+typedef struct evp_pkey_st EVP_PKEY;
+typedef struct x509_st X509;
+typedef struct asn1_string_st ASN1_INTEGER;
+typedef struct asn1_string_st ASN1_TIME;
+typedef struct X509_name_st X509_NAME;
+typedef struct evp_md_st EVP_MD;
+typedef struct engine_st ENGINE;
+typedef struct x509_store_ctx_st X509_STORE_CTX;
+
+#define EVP_PKEY_RSA 6
+#define MBSTRING_ASC 0x1001
+#define SSL_VERIFY_NONE 0
+#define SSL_ERROR_NONE 0
+#define SSL_ERROR_SSL 1
+#define SSL_ERROR_WANT_READ 2
+#define SSL_ERROR_WANT_WRITE 3
+#define SSL_ERROR_SYSCALL 5
+#define SSL_ERROR_ZERO_RETURN 6
 
 // Loader state
 extern BOOL g_OpenSSLLoaded;
